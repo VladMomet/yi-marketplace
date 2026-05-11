@@ -6,7 +6,6 @@
  * Идемпотентен.
  */
 
-import 'dotenv/config'
 import { db } from '../src/db'
 import { categories } from '../src/db/schema'
 import { slugify } from '../src/lib/utils'
