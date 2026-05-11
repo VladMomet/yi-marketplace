@@ -6,7 +6,6 @@
  * Идемпотентен: при повторном запуске обновляет существующие города по slug.
  */
 
-import 'dotenv/config'
 import { db } from '../src/db'
 import { cities } from '../src/db/schema'
 import { sql } from 'drizzle-orm'
