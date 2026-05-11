@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-paper text-ink font-sans;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  ::selection {
+    @apply bg-cinnabar text-surface-hi;
+  }
+
+  /* Tabular numbers — для цен и метрик */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Pill-button: базовый класс для всех кнопок-таблеток */
+  .btn-pill {
+    @apply inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-all duration-200 ease;
+  }
+
+  /* Primary action */
+  .btn-primary {
+    @apply btn-pill bg-ink text-paper hover:bg-cinnabar;
+  }
+
+  .btn-secondary {
+    @apply btn-pill border border-ink-2 bg-transparent text-ink hover:bg-ink hover:text-paper;
+  }
+}
