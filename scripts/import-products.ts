@@ -17,7 +17,6 @@
  *  npm run seed:categories  (засеять категории)
  */
 
-import 'dotenv/config'
 import ExcelJS from 'exceljs'
 import path from 'path'
 import { eq, inArray } from 'drizzle-orm'

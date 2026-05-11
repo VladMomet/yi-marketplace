@@ -2,11 +2,12 @@
  * Сид городов доставки.
  *
  * Запуск: npm run seed:cities
+ *   Локально:    DATABASE_URL=... npm run seed:cities
+ *   В GitHub Actions: переменные приходят через env: блок workflow.
  *
  * Идемпотентен: при повторном запуске обновляет существующие города по slug.
  */
 
-import 'dotenv/config'
 import { db } from '../src/db'
 import { cities } from '../src/db/schema'
 import { sql } from 'drizzle-orm'
