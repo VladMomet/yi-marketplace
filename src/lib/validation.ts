@@ -125,6 +125,8 @@ export type CreateOrderInput = z.infer<typeof createOrderSchema>
 
 /* ─── Sourcing ─────────────────────────────────────────────────────── */
 
+// Описание/qty/budget — приходят полями FormData. Фото — отдельные поля photo_0..photo_2.
+// photo_urls больше не используется (фото уходят прямо в Telegram через multipart).
 export const createSourcingSchema = z.object({
   description: z
     .string()
@@ -133,6 +135,5 @@ export const createSourcingSchema = z.object({
     .max(5000),
   qty: z.number().int().min(1).max(100000),
   budget_rub: z.number().min(0).max(10_000_000).optional().nullable(),
-  photo_urls: z.array(z.string().url()).max(SOURCING_PHOTOS_MAX_COUNT).default([]),
 })
 export type CreateSourcingInput = z.infer<typeof createSourcingSchema>

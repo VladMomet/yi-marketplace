@@ -43,7 +43,15 @@ export interface SourcingNotificationPayload {
   description: string
   qty: number
   budgetRub?: number | null
-  photoUrls: string[] // URL фото-референсов (в нашем S3)
+  /**
+   * Фото-референсы в виде буферов. Загружаются прямо в Telegram через
+   * multipart (без S3 — экономим инфру в MVP).
+   */
+  photos: Array<{
+    buffer: Buffer
+    filename: string
+    contentType: string
+  }>
 }
 
 /**
@@ -96,6 +104,47 @@ async function sendPhotoFromUrl(photoUrl: string, caption?: string): Promise<boo
     return res.ok
   } catch (e) {
     console.error('[Telegram] sendPhoto exception:', e)
+    return false
+  }
+}
+
+/**
+ * Отправляет фото прямо из буфера (multipart/form-data).
+ * Используется для фото-референсов в заявках на подбор — мы шлём их
+ * напрямую в Telegram без промежуточного S3-хранилища.
+ *
+ * Лимит Telegram: 10 МБ на одно фото.
+ */
+async function sendPhotoBuffer(
+  buffer: Buffer,
+  filename: string,
+  contentType: string,
+  caption?: string
+): Promise<boolean> {
+  if (!TG_BOT_TOKEN || !TG_CHAT_ID) {
+    console.warn('[Telegram] Bot not configured, skip photo')
+    return false
+  }
+
+  try {
+    const form = new FormData()
+    form.append('chat_id', TG_CHAT_ID)
+    if (caption) form.append('caption', caption)
+    // Blob доступен глобально в Node.js 18+ и Vercel runtime
+    const blob = new Blob([new Uint8Array(buffer)], { type: contentType })
+    form.append('photo', blob, filename)
+
+    const res = await fetch(`${TG_API}/sendPhoto`, {
+      method: 'POST',
+      body: form,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      console.error('[Telegram] sendPhotoBuffer failed:', res.status, text)
+    }
+    return res.ok
+  } catch (e) {
+    console.error('[Telegram] sendPhotoBuffer exception:', e)
     return false
   }
 }
@@ -182,9 +231,15 @@ export async function notifyNewSourcing(payload: SourcingNotificationPayload): P
 
   await sendMessage(lines.join('\n'))
 
-  // Шлём фото-референсы отдельно
-  for (const url of payload.photoUrls) {
-    await sendPhotoFromUrl(url, `📎 Референс к заявке ${payload.number}`)
+  // Шлём фото-референсы как multipart прямо в Telegram (без S3)
+  for (let i = 0; i < payload.photos.length; i++) {
+    const photo = payload.photos[i]
+    await sendPhotoBuffer(
+      photo.buffer,
+      photo.filename,
+      photo.contentType,
+      `📎 Референс ${i + 1}/${payload.photos.length} к заявке ${payload.number}`
+    )
   }
 }
 

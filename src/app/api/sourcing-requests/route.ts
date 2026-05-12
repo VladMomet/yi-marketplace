@@ -2,18 +2,31 @@
  * POST /api/sourcing-requests — создаёт заявку на подбор + Telegram-уведомление.
  * GET  /api/sourcing-requests — список заявок текущего пользователя.
  *
- * Фото уже загружены в S3 через POST /api/uploads/sourcing-photo,
- * сюда передаются их URL.
+ * РАНЬШЕ фото загружались в S3 через /api/uploads/sourcing-photo и сюда
+ * приходили URL'ы (JSON). СЕЙЧАС — фото идут multipart прямо в этот эндпоинт
+ * и сразу пересылаются в Telegram. S3 в MVP не используем.
+ *
+ * Поля multipart:
+ *   description: string
+ *   qty: number (как строка)
+ *   budget_rub: number | пусто
+ *   photo_0, photo_1, photo_2: File (опционально, до 3 шт)
  */
 
 import { NextResponse } from 'next/server'
-import { eq, desc, inArray, asc } from 'drizzle-orm'
+import { eq, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { sourcingRequests, sourcingRequestPhotos, users } from '@/db/schema'
+import { sourcingRequests, users } from '@/db/schema'
 import { createSourcingSchema } from '@/lib/validation'
 import { generateSourcingNumber } from '@/lib/utils'
 import { notifyNewSourcing } from '@/lib/telegram'
+import {
+  SOURCING_PHOTO_MAX_SIZE_BYTES,
+  SOURCING_PHOTOS_MAX_COUNT,
+} from '@/lib/constants'
+
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -24,17 +37,30 @@ export async function POST(req: Request) {
     )
   }
 
-  let body: unknown
+  // Принимаем multipart/form-data
+  let form: FormData
   try {
-    body = await req.json()
+    form = await req.formData()
   } catch {
     return NextResponse.json(
-      { error: { code: 'BAD_JSON', message: 'Invalid JSON' } },
+      { error: { code: 'BAD_FORM', message: 'Невалидная форма' } },
       { status: 400 }
     )
   }
 
-  const parsed = createSourcingSchema.safeParse(body)
+  // Текстовые поля
+  const description = String(form.get('description') ?? '').trim()
+  const qtyRaw = String(form.get('qty') ?? '').trim()
+  const budgetRaw = String(form.get('budget_rub') ?? '').trim()
+
+  const qty = Number(qtyRaw)
+  const budgetRub = budgetRaw === '' ? null : Number(budgetRaw)
+
+  const parsed = createSourcingSchema.safeParse({
+    description,
+    qty,
+    budget_rub: budgetRub,
+  })
   if (!parsed.success) {
     return NextResponse.json(
       {
@@ -49,48 +75,93 @@ export async function POST(req: Request) {
   }
 
   const input = parsed.data
-  const number = generateSourcingNumber()
 
-  const request = await db.transaction(async (tx) => {
-    const [r] = await tx
-      .insert(sourcingRequests)
-      .values({
-        number,
-        userId: session.user.id,
-        description: input.description,
-        qty: input.qty,
-        budgetRub: input.budget_rub !== null && input.budget_rub !== undefined ? String(input.budget_rub) : null,
-        status: 'new',
-      })
-      .returning()
-
-    if (input.photo_urls.length > 0) {
-      await tx.insert(sourcingRequestPhotos).values(
-        input.photo_urls.map((url, idx) => ({
-          requestId: r.id,
-          url,
-          sortOrder: idx,
-        }))
-      )
+  // Собираем фото-файлы
+  const photoFiles: File[] = []
+  for (let i = 0; i < SOURCING_PHOTOS_MAX_COUNT; i++) {
+    const f = form.get(`photo_${i}`)
+    if (f instanceof File && f.size > 0) {
+      // Валидация типа и размера
+      if (!ALLOWED_TYPES.has(f.type)) {
+        return NextResponse.json(
+          {
+            error: {
+              code: 'INVALID_PHOTO_TYPE',
+              message: `Фото ${i + 1}: допустимы только JPG, PNG, WebP`,
+            },
+          },
+          { status: 415 }
+        )
+      }
+      if (f.size > SOURCING_PHOTO_MAX_SIZE_BYTES) {
+        return NextResponse.json(
+          {
+            error: {
+              code: 'PHOTO_TOO_LARGE',
+              message: `Фото ${i + 1} больше ${Math.round(
+                SOURCING_PHOTO_MAX_SIZE_BYTES / 1024 / 1024
+              )} МБ`,
+            },
+          },
+          { status: 413 }
+        )
+      }
+      photoFiles.push(f)
     }
+  }
 
-    return r
-  })
-
-  // Telegram — fire-and-forget
-  const [user] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1)
-  if (user) {
-    notifyNewSourcing({
+  // Создаём заявку (без записи URL'ов фото — мы их не храним больше)
+  const number = generateSourcingNumber()
+  const [request] = await db
+    .insert(sourcingRequests)
+    .values({
       number,
-      userName: user.name,
-      userPhone: user.phone,
+      userId: session.user.id,
       description: input.description,
       qty: input.qty,
-      budgetRub: input.budget_rub,
-      photoUrls: input.photo_urls,
-    }).catch((e) => {
-      console.error('[Sourcing] Telegram notification failed:', e)
+      budgetRub:
+        input.budget_rub !== null && input.budget_rub !== undefined
+          ? String(input.budget_rub)
+          : null,
+      status: 'new',
     })
+    .returning()
+
+  console.log('[Sourcing] Created request', number, 'with', photoFiles.length, 'photos')
+
+  // Telegram-уведомление: текст + фото (await, чтобы успело уйти до завершения serverless)
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1)
+
+    if (user) {
+      // Конвертим File → Buffer
+      const photos = await Promise.all(
+        photoFiles.map(async (f, idx) => ({
+          buffer: Buffer.from(await f.arrayBuffer()),
+          filename: f.name || `photo-${idx}.jpg`,
+          contentType: f.type,
+        }))
+      )
+
+      console.log('[Sourcing] Sending Telegram notification for', number)
+      await notifyNewSourcing({
+        number,
+        userName: user.name,
+        userPhone: user.phone,
+        description: input.description,
+        qty: input.qty,
+        budgetRub: input.budget_rub,
+        photos,
+      })
+      console.log('[Sourcing] Telegram notification sent for', number)
+    }
+  } catch (e) {
+    console.error('[Sourcing] Telegram notification failed:', e)
+    // не валим заявку — она уже в БД
   }
 
   return NextResponse.json({
@@ -117,23 +188,6 @@ export async function GET() {
     .where(eq(sourcingRequests.userId, session.user.id))
     .orderBy(desc(sourcingRequests.createdAt))
 
-  const ids = list.map((r) => r.id)
-  const photos =
-    ids.length > 0
-      ? await db
-          .select()
-          .from(sourcingRequestPhotos)
-          .where(inArray(sourcingRequestPhotos.requestId, ids))
-          .orderBy(asc(sourcingRequestPhotos.sortOrder))
-      : []
-
-  const photosByRequest = new Map<string, string[]>()
-  for (const p of photos) {
-    const arr = photosByRequest.get(p.requestId) ?? []
-    arr.push(p.url)
-    photosByRequest.set(p.requestId, arr)
-  }
-
   return NextResponse.json(
     list.map((r) => ({
       number: r.number,
@@ -141,7 +195,7 @@ export async function GET() {
       description: r.description,
       qty: r.qty,
       budget_rub: r.budgetRub !== null ? Number(r.budgetRub) : null,
-      photos: photosByRequest.get(r.id) ?? [],
+      photos: [], // больше не храним — менеджер получает фото в TG
       created_at: r.createdAt,
     }))
   )

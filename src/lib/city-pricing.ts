@@ -24,8 +24,8 @@ export const CITY_PRICE_MULTIPLIER: Record<string, number> = {
   chelyabinsk: 0.985,
   novosibirsk: 0.975,
   omsk: 0.95,
-  samara: 1.1,
-  'rostov-on-don': 1.1,
+  samara: 1.01,
+  'rostov-on-don': 1.01,
 }
 
 export const DEFAULT_CITY_SLUG = 'moscow'

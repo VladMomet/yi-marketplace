@@ -52,7 +52,7 @@ export default function SourcingPage() {
             <span className="italic font-light text-cinnabar">Найдём.</span>
           </h1>
           <p className="max-w-2xl text-lg leading-relaxed text-ink-2">
-            Опишите что нужно — габариты, материал, стиль, бюджет — и прикрепите
+            Опишите что нужно: габариты, материал, стиль, бюджет. Прикрепите
             референсные фото. Сотрудник в Иу или Гуанчжоу проедет по фабрикам и
             пришлёт 2–3 варианта с ценой, MOQ и сроками.
           </p>

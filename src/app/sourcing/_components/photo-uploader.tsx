@@ -1,17 +1,17 @@
 /**
- * PhotoUploader — загрузка до 3 фото-референсов.
+ * PhotoUploader — выбор до 3 фото-референсов.
  *
- * Каждое фото сразу загружается на /api/uploads/sourcing-photo (S3),
- * возвращённый URL добавляется в state. При удалении — URL удаляется,
- * родителю передаётся актуальный список.
+ * РАНЬШЕ: каждое фото сразу загружалось в S3, возвращался URL.
+ * СЕЙЧАС: фото хранятся локально как File-объекты. Сабмит формы
+ * отправляет их вместе с описанием одним multipart-запросом, который
+ * пересылает их прямо в Telegram. S3 в MVP не используется.
  *
- * Поддержка: drag-n-drop, клик по зоне, превью с кнопкой ×, loading-state,
- * ошибки (размер, формат).
+ * Превью — через URL.createObjectURL.
  */
 
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import {
   SOURCING_PHOTO_MAX_SIZE_BYTES,
@@ -19,16 +19,15 @@ import {
 } from '@/lib/constants'
 
 interface PhotoSlot {
-  id: string // local uuid для key и удаления
-  url: string | null // постоянный URL после успешной загрузки
-  uploading: boolean
+  id: string // локальный uuid для key + удаления
+  file: File | null // сам файл (null если ошибка валидации)
   error: string | null
-  preview: string | null // object URL для немедленного превью
+  preview: string | null // object URL для превью
 }
 
 interface Props {
-  value: string[] // массив URL'ов уже загруженных фото
-  onChange: (urls: string[]) => void
+  /** Список выбранных файлов наружу — обновляется при добавлении/удалении */
+  onFilesChange: (files: File[]) => void
   disabled?: boolean
 }
 
@@ -38,78 +37,42 @@ function genId() {
   return Math.random().toString(36).slice(2, 10)
 }
 
-export function PhotoUploader({ value, onChange, disabled }: Props) {
-  // Внутренний state хранит локальные слоты с превью.
-  // value (URLs) — это просто проекция: для слотов где url !== null.
-  // Контроллируем через value? Нет, для UX лучше внутренний state.
-  const [slots, setSlots] = useState<PhotoSlot[]>(() =>
-    value.map((url) => ({ id: genId(), url, uploading: false, error: null, preview: null }))
-  )
+export function PhotoUploader({ onFilesChange, disabled }: Props) {
+  const [slots, setSlots] = useState<PhotoSlot[]>([])
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const updateParent = useCallback(
-    (next: PhotoSlot[]) => {
-      const urls = next.map((s) => s.url).filter((u): u is string => u !== null)
-      onChange(urls)
-    },
-    [onChange]
-  )
-
-  const uploadFile = async (file: File, slotId: string) => {
-    const fd = new FormData()
-    fd.append('file', file)
-
-    try {
-      const res = await fetch('/api/uploads/sourcing-photo', {
-        method: 'POST',
-        body: fd,
-      })
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: { message?: string } }
-          | null
-        const msg = data?.error?.message ?? 'Не удалось загрузить'
-        setSlots((prev) => {
-          const next = prev.map((s) =>
-            s.id === slotId ? { ...s, uploading: false, error: msg, url: null } : s
-          )
-          updateParent(next)
-          return next
-        })
-        return
-      }
-      const data = (await res.json()) as { url: string }
-      setSlots((prev) => {
-        const next = prev.map((s) =>
-          s.id === slotId
-            ? { ...s, uploading: false, url: data.url, error: null }
-            : s
-        )
-        updateParent(next)
-        return next
-      })
-    } catch {
-      setSlots((prev) => {
-        const next = prev.map((s) =>
-          s.id === slotId
-            ? { ...s, uploading: false, error: 'Сеть недоступна', url: null }
-            : s
-        )
-        updateParent(next)
-        return next
+  // Освобождаем object URL при размонтировании, чтобы не текла память
+  useEffect(() => {
+    return () => {
+      slots.forEach((s) => {
+        if (s.preview) URL.revokeObjectURL(s.preview)
       })
     }
-  }
+    // намеренно с пустым deps — фиксируем cleanup на unmount; внутри cleanup
+    // используем актуальные slots через closure, это безопасно для useEffect cleanup
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const updateParent = useCallback(
+    (next: PhotoSlot[]) => {
+      const files = next
+        .map((s) => s.file)
+        .filter((f): f is File => f !== null)
+      onFilesChange(files)
+    },
+    [onFilesChange]
+  )
 
   const addFiles = (files: FileList | File[]) => {
     if (disabled) return
     const arr = Array.from(files)
-    const remaining = SOURCING_PHOTOS_MAX_COUNT - slots.filter((s) => !s.error).length
+    const remaining =
+      SOURCING_PHOTOS_MAX_COUNT - slots.filter((s) => !s.error).length
 
+    const additions: PhotoSlot[] = []
     for (let i = 0; i < arr.length && i < remaining; i++) {
       const file = arr[i]
-      // Валидация
       let error: string | null = null
       if (!ALLOWED_TYPES.has(file.type)) {
         error = 'Только JPG, PNG, WebP'
@@ -117,30 +80,29 @@ export function PhotoUploader({ value, onChange, disabled }: Props) {
         error = 'Файл больше 10 MB'
       }
 
-      const id = genId()
-      const preview = URL.createObjectURL(file)
       const slot: PhotoSlot = {
-        id,
-        url: null,
-        uploading: error === null,
+        id: genId(),
+        file: error === null ? file : null,
         error,
-        preview,
+        preview: URL.createObjectURL(file),
       }
-
-      setSlots((prev) => [...prev, slot])
-
-      if (!error) {
-        uploadFile(file, id)
-      }
+      additions.push(slot)
     }
+
+    if (additions.length === 0) return
+
+    setSlots((prev) => {
+      const next = [...prev, ...additions]
+      updateParent(next)
+      return next
+    })
   }
 
   const removeSlot = (id: string) => {
     setSlots((prev) => {
-      const next = prev.filter((s) => s.id !== id)
-      // Освободим object URL чтобы не текла память
       const removed = prev.find((s) => s.id === id)
       if (removed?.preview) URL.revokeObjectURL(removed.preview)
+      const next = prev.filter((s) => s.id !== id)
       updateParent(next)
       return next
     })
@@ -151,7 +113,7 @@ export function PhotoUploader({ value, onChange, disabled }: Props) {
 
   return (
     <div>
-      {/* Превью загруженных */}
+      {/* Превью */}
       {slots.length > 0 && (
         <ul className="mb-4 grid grid-cols-3 gap-3 sm:gap-4">
           {slots.map((slot) => (
@@ -159,45 +121,16 @@ export function PhotoUploader({ value, onChange, disabled }: Props) {
               key={slot.id}
               className={cn(
                 'group relative aspect-square overflow-hidden rounded-lg border-2',
-                slot.error
-                  ? 'border-cinnabar/40'
-                  : slot.url
-                  ? 'border-hair'
-                  : 'border-hair-2'
+                slot.error ? 'border-cinnabar/40' : 'border-hair'
               )}
             >
-              {(slot.url || slot.preview) && (
+              {slot.preview && (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
-                  src={slot.url ?? slot.preview ?? ''}
+                  src={slot.preview}
                   alt=""
-                  className={cn(
-                    'absolute inset-0 h-full w-full object-cover',
-                    slot.uploading && 'opacity-50'
-                  )}
+                  className="absolute inset-0 h-full w-full object-cover"
                 />
-              )}
-
-              {slot.uploading && (
-                <div className="absolute inset-0 grid place-items-center bg-paper/50 backdrop-blur-sm">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    className="animate-spin text-ink-2"
-                  >
-                    <circle
-                      cx="10"
-                      cy="10"
-                      r="7"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeDasharray="8 40"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
               )}
 
               {slot.error && (

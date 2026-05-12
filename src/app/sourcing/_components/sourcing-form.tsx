@@ -31,7 +31,7 @@ interface FormState {
   description: string
   qty: string
   budget: string
-  photoUrls: string[]
+  photoFiles: File[]
   // Для гостей
   type: UserType
   name: string
@@ -50,7 +50,7 @@ const initial: FormState = {
   description: '',
   qty: '',
   budget: '',
-  photoUrls: [],
+  photoFiles: [],
   type: 'physical',
   name: '',
   phone: '',
@@ -170,18 +170,20 @@ export function SourcingForm() {
         }
       }
 
-      // 2. Создание заявки
-      const sourcingBody = {
-        description: form.description.trim(),
-        qty: qtyNum,
-        budget_rub: form.budget ? parseFloat(form.budget) : null,
-        photo_urls: form.photoUrls,
+      // 2. Создание заявки — отправляем multipart с описанием + фото
+      const fd = new FormData()
+      fd.append('description', form.description.trim())
+      fd.append('qty', String(qtyNum))
+      if (form.budget) {
+        fd.append('budget_rub', String(parseFloat(form.budget)))
       }
+      form.photoFiles.forEach((file, idx) => {
+        fd.append(`photo_${idx}`, file, file.name)
+      })
 
       const res = await fetch('/api/sourcing-requests', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sourcingBody),
+        body: fd,
       })
 
       if (!res.ok) {
@@ -303,8 +305,7 @@ export function SourcingForm() {
       <FormField className="mb-0">
         <Label>Референсы (до 3 фото)</Label>
         <PhotoUploader
-          value={form.photoUrls}
-          onChange={(urls) => update('photoUrls', urls)}
+          onFilesChange={(files) => update('photoFiles', files)}
           disabled={submitting}
         />
       </FormField>
