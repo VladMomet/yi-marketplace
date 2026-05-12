@@ -69,6 +69,20 @@ export function useCity() {
     typeof document !== 'undefined' ? readCookie(COOKIE_NAME) : null
   )
 
+  // ВАЖНО: каждый компонент вызывает useCity() и получает свой экземпляр
+  // состояния (это просто хук, не Context). Поэтому когда один компонент
+  // меняет город, остальные должны узнать об этом через событие.
+  useEffect(() => {
+    const onCityChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ slug?: string | null }>).detail
+      if (detail?.slug !== undefined && detail.slug !== null) {
+        setSelectedSlug(detail.slug)
+      }
+    }
+    window.addEventListener('yi:city-changed', onCityChange)
+    return () => window.removeEventListener('yi:city-changed', onCityChange)
+  }, [])
+
   useEffect(() => {
     if (cities.length > 0) return
     let cancelled = false

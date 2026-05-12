@@ -56,9 +56,9 @@ export function Sheet({
   if (!open) return null
 
   const sideClasses = {
-    right: cn('right-0 top-0 h-full', widthClassName, 'max-w-full', 'yi-sheet-right'),
-    left: cn('left-0 top-0 h-full', widthClassName, 'max-w-full', 'yi-sheet-left'),
-    bottom: 'bottom-0 left-0 w-full max-h-[90vh] yi-sheet-bottom',
+    right: cn('right-0 top-0 h-[100dvh]', widthClassName, 'max-w-full', 'yi-sheet-right'),
+    left: cn('left-0 top-0 h-[100dvh]', widthClassName, 'max-w-full', 'yi-sheet-left'),
+    bottom: 'bottom-0 left-0 w-full max-h-[90dvh] yi-sheet-bottom',
   }
 
   return (
@@ -96,7 +96,7 @@ export function SheetHeader({
   return (
     <header
       className={cn(
-        'flex items-center justify-between border-b border-hair px-6 py-5',
+        'flex flex-none items-center justify-between border-b border-hair px-5 py-4 lg:px-6 lg:py-5',
         className
       )}
     >
@@ -137,7 +137,11 @@ export function SheetBody({
   children: ReactNode
   className?: string
 }) {
-  return <div className={cn('flex-1 overflow-y-auto px-6 py-6', className)}>{children}</div>
+  return (
+    <div className={cn('min-h-0 flex-1 overflow-y-auto px-5 py-5 lg:px-6 lg:py-6', className)}>
+      {children}
+    </div>
+  )
 }
 
 export function SheetFooter({

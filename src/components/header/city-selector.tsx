@@ -57,17 +57,17 @@ export function CitySelector() {
         </svg>
       </button>
 
-      <Sheet open={open} onOpenChange={setOpen} side="right" widthClassName="w-[420px]">
+      <Sheet open={open} onOpenChange={setOpen} side="right" widthClassName="w-[380px]">
         <SheetHeader>
           <SheetTitle>Город доставки</SheetTitle>
           <SheetClose onClose={() => setOpen(false)} />
         </SheetHeader>
-        <SheetBody>
-          <p className="mb-5 text-sm text-ink-3">
+        <SheetBody className="px-3 py-3 lg:px-4 lg:py-4">
+          <p className="mb-3 px-2 text-[12.5px] leading-snug text-ink-3">
             Цена в каталоге уже включает доставку. В разные города стоимость
-            логистики разная — поэтому итоговая цена зависит от выбранного города.
+            логистики разная — итог зависит от выбранного города.
           </p>
-          <ul className="space-y-1">
+          <ul>
             {cities.map((city) => {
               const isActive = city.slug === selected?.slug
               const mult = getCityMultiplier(city.slug)
@@ -81,27 +81,29 @@ export function CitySelector() {
                       setOpen(false)
                     }}
                     className={cn(
-                      'flex w-full items-center justify-between gap-3 rounded-lg px-4 py-3 text-left transition-colors',
+                      'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
                       isActive
                         ? 'bg-ink text-paper'
                         : 'bg-transparent text-ink hover:bg-paper-2'
                     )}
                   >
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-semibold">{city.nameRu}</span>
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="truncate text-[14.5px] font-semibold leading-tight">
+                        {city.nameRu}
+                      </span>
                       <span
                         className={cn(
-                          'font-mono text-[10.5px] uppercase tracking-wider',
+                          'font-mono text-[10px] uppercase tracking-wider',
                           isActive ? 'text-paper/60' : 'text-ink-3'
                         )}
                       >
-                        {city.daysMin}–{city.daysMax} дней
+                        {city.daysMin}–{city.daysMax} дн.
                       </span>
                     </div>
 
                     <span
                       className={cn(
-                        'tnum shrink-0 rounded-full px-2.5 py-1 font-mono text-[10.5px] font-semibold',
+                        'tnum shrink-0 rounded-full px-2 py-0.5 font-mono text-[10.5px] font-semibold',
                         isActive
                           ? 'bg-paper/20 text-paper'
                           : mod.tone === 'discount'
@@ -118,10 +120,6 @@ export function CitySelector() {
               )
             })}
           </ul>
-
-          <p className="mt-6 text-xs leading-relaxed text-ink-3">
-            Изменение города пересчитает цены в каталоге и в корзине автоматически.
-          </p>
         </SheetBody>
       </Sheet>
     </>

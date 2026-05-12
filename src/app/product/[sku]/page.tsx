@@ -117,12 +117,30 @@ export default async function ProductPage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      {/* Хлебные крошки */}
+      {/* Хлебные крошки + кнопка Назад */}
       <div className="border-b border-hair bg-paper">
-        <div className="container mx-auto max-w-[1480px] px-6 py-5 lg:px-8 lg:py-6">
+        <div className="container mx-auto flex max-w-[1480px] items-center gap-4 px-6 py-4 lg:px-8 lg:py-5">
+          <Link
+            href={`/catalog/${product.category.slug}`}
+            className="inline-flex items-center gap-2 rounded-full border border-hair bg-surface-hi px-3.5 py-1.5 font-mono text-[10.5px] uppercase tracking-wider text-ink-2 transition-colors hover:border-ink-2 hover:text-ink"
+            aria-label="Вернуться в каталог"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M8 2L4 6l4 4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span>В каталог</span>
+          </Link>
+
+          {/* Десктопные крошки рядом */}
           <nav
             aria-label="Хлебные крошки"
-            className="font-mono text-[10.5px] uppercase tracking-wider text-ink-3"
+            className="hidden font-mono text-[10.5px] uppercase tracking-wider text-ink-3 md:block"
           >
             <Link href="/" className="hover:text-ink transition-colors">
               Главная
@@ -170,8 +188,6 @@ export default async function ProductPage({ params }: Props) {
 
             <PriceBlock
               rub={product.price.rub}
-              cny={product.price.cny}
-              breakdown={product.price.breakdown}
               cityName={
                 product.delivery?.city.name_acc ?? product.delivery?.city.name_ru ?? 'Москву'
               }
@@ -207,33 +223,6 @@ export default async function ProductPage({ params }: Props) {
                 </p>
               </section>
             )}
-
-            {/* Источник */}
-            <div className="border-t border-hair pt-6 font-mono text-[10.5px] uppercase tracking-wider text-ink-3">
-              Источник:{' '}
-              <a
-                href={product.source_url}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className="text-ink-2 hover:text-cinnabar transition-colors"
-              >
-                1688.com · offer {product.source_url.match(/offer\/(\d+)/)?.[1] ?? ''}
-                <svg
-                  width="9"
-                  height="9"
-                  viewBox="0 0 9 9"
-                  fill="none"
-                  className="ml-1 inline-block"
-                >
-                  <path
-                    d="M2 2h5v5M2 7L7 2"
-                    stroke="currentColor"
-                    strokeWidth="1.2"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </a>
-            </div>
           </div>
         </div>
       </div>

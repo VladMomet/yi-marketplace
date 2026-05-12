@@ -13,7 +13,19 @@
 import { useState } from 'react'
 import { useCity } from '@/hooks/use-city'
 import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetClose } from '@/components/ui/sheet'
+import { getCityMultiplier } from '@/lib/city-pricing'
 import { cn } from '@/lib/utils'
+
+function formatModifier(mult: number): { label: string; tone: 'discount' | 'markup' | 'neutral' } {
+  if (Math.abs(mult - 1) < 0.001) return { label: 'базовая', tone: 'neutral' }
+  const pct = (mult - 1) * 100
+  const sign = pct > 0 ? '+' : ''
+  const rounded = Number.isInteger(pct * 10) ? pct.toFixed(1).replace(/\.0$/, '') : pct.toFixed(1)
+  return {
+    label: `${sign}${rounded}%`,
+    tone: pct < 0 ? 'discount' : 'markup',
+  }
+}
 
 interface InitialCity {
   slug: string
@@ -103,13 +115,15 @@ export function DeliveryBlock({ initial }: { initial: InitialDelivery | null }) 
           <SheetTitle>Город доставки</SheetTitle>
           <SheetClose onClose={() => setOpen(false)} />
         </SheetHeader>
-        <SheetBody>
-          <p className="mb-5 text-sm text-ink-3">
-            Срок указан до вашего города. Цена в каталоге уже включает доставку.
+        <SheetBody className="px-3 py-3 lg:px-4 lg:py-4">
+          <p className="mb-3 px-2 text-[12.5px] leading-snug text-ink-3">
+            Цена и срок зависят от города. Изменение пересчитает цены автоматически.
           </p>
-          <ul className="space-y-1">
+          <ul>
             {cities.map((city) => {
               const isActive = city.slug === displayCity.slug
+              const mult = getCityMultiplier(city.slug)
+              const mod = formatModifier(mult)
               return (
                 <li key={city.id}>
                   <button
@@ -118,20 +132,38 @@ export function DeliveryBlock({ initial }: { initial: InitialDelivery | null }) 
                       setOpen(false)
                     }}
                     className={cn(
-                      'flex w-full items-center justify-between rounded-md px-4 py-3 text-left transition-colors',
+                      'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
                       isActive
                         ? 'bg-ink text-paper'
                         : 'bg-transparent text-ink hover:bg-paper-2'
                     )}
                   >
-                    <span className="font-semibold">{city.nameRu}</span>
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className="truncate text-[14.5px] font-semibold leading-tight">
+                        {city.nameRu}
+                      </span>
+                      <span
+                        className={cn(
+                          'font-mono text-[10px] uppercase tracking-wider',
+                          isActive ? 'text-paper/60' : 'text-ink-3'
+                        )}
+                      >
+                        {city.daysMin}–{city.daysMax} дн.
+                      </span>
+                    </div>
                     <span
                       className={cn(
-                        'tnum font-mono text-xs',
-                        isActive ? 'text-paper/70' : 'text-ink-3'
+                        'tnum shrink-0 rounded-full px-2 py-0.5 font-mono text-[10.5px] font-semibold',
+                        isActive
+                          ? 'bg-paper/20 text-paper'
+                          : mod.tone === 'discount'
+                          ? 'bg-positive/12 text-positive'
+                          : mod.tone === 'markup'
+                          ? 'bg-cinnabar/12 text-cinnabar'
+                          : 'bg-paper-2 text-ink-3'
                       )}
                     >
-                      {city.daysMin}–{city.daysMax} дн.
+                      {mod.label}
                     </span>
                   </button>
                 </li>

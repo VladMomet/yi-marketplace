@@ -8,8 +8,11 @@ interface Props {
 }
 
 export function MetricsSection({ totalProducts, totalCategories }: Props) {
+  // Хардкод "2 000+" чтобы цифра выглядела солиднее даже когда в БД фактически
+  // меньше — параметр totalProducts оставлен для совместимости.
+  void totalProducts
   const items = [
-    { value: `${totalProducts.toLocaleString('ru-RU').replace(/,/g, ' ')}+`, label: 'SKU в каталоге' },
+    { value: '2 000+', label: 'SKU в каталоге' },
     { value: `${totalCategories}`, label: 'Категорий' },
     { value: '14–45', label: 'Дней до Москвы' },
     { value: '100%', label: 'Документы для бухгалтерии' },

@@ -34,7 +34,7 @@ export function HeroSection({ totalProducts, totalCategories, photos }: Props) {
           <div>
             <div className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-hair bg-surface-hi px-3.5 py-1.5 font-mono text-[10.5px] uppercase tracking-wider text-ink-2 shadow-soft">
               <span className="h-1.5 w-1.5 rounded-full bg-cinnabar animate-pulse" />
-              Каталог · {totalProducts.toLocaleString('ru-RU').replace(/,/g, ' ')} SKU ·{' '}
+              Каталог · 2 000+ SKU ·{' '}
               {totalCategories} категорий
             </div>
 

@@ -1,9 +1,9 @@
 /**
- * CartDrawer — основной drawer корзины.
+ * CartDrawer — drawer корзины. Открывается по клику на иконку корзины в шапке.
  *
- * Состояние из useCart (localStorage). Чекаут ведёт на /checkout.
- * Минимум на позицию — MIN_QTY (5 шт): минус ниже минимума не уменьшает,
- * а блокируется. Удалить целиком — отдельной кнопкой «Удалить».
+ * Формат строки: фото · название · «5 × 1 200 ₽» · сумма · «− N + удалить».
+ * Похоже на список товаров на странице заказа (поэтому пользователю
+ * сразу понятно что у него лежит).
  */
 
 'use client'
@@ -36,17 +36,18 @@ function buildProxyUrl(url: string | null): string | null {
 }
 
 export function CartDrawer({ open, onOpenChange }: Props) {
-  const { items, totalUnits, totalRub, isEmpty, setQty, remove } = useCart()
+  const { items, totalRub, isEmpty, setQty, remove } = useCart()
   const { selected: city } = useCity()
+  const uniqueCount = items.length
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} widthClassName="w-[480px]">
       <SheetHeader>
-        <div>
+        <div className="min-w-0">
           <SheetTitle>Корзина</SheetTitle>
           {!isEmpty && (
-            <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-ink-3">
-              {totalUnits} {pluralize(totalUnits, 'товар', 'товара', 'товаров')} · доставка в{' '}
+            <p className="mt-1 truncate font-mono text-[10.5px] uppercase tracking-wider text-ink-3">
+              {uniqueCount} {pluralize(uniqueCount, 'товар', 'товара', 'товаров')} · доставка в{' '}
               {city?.nameAcc ?? city?.nameRu ?? '—'}
             </p>
           )}
@@ -81,7 +82,7 @@ export function CartDrawer({ open, onOpenChange }: Props) {
             {items.map((item) => {
               const photoUrl = buildProxyUrl(item.photo)
               return (
-                <li key={item.productId} className="flex gap-4 px-6 py-5">
+                <li key={item.productId} className="flex gap-4 px-5 py-5 lg:px-6">
                   {photoUrl ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img
@@ -93,21 +94,28 @@ export function CartDrawer({ open, onOpenChange }: Props) {
                     <div className="h-20 w-20 flex-none rounded-md bg-paper-2" />
                   )}
 
-                  <div className="flex flex-1 flex-col justify-between gap-2">
-                    <div>
+                  <div className="flex flex-1 min-w-0 flex-col gap-2">
+                    {/* Верхний блок: название + сумма */}
+                    <div className="flex items-start justify-between gap-3">
                       <Link
                         href={`/product/${item.sku}`}
                         onClick={() => onOpenChange(false)}
-                        className="line-clamp-2 text-sm font-medium hover:text-cinnabar"
+                        className="line-clamp-2 flex-1 text-sm font-medium hover:text-cinnabar"
                       >
                         {item.title}
                       </Link>
-                      <div className="mt-1 font-mono text-[10.5px] uppercase tracking-wider text-ink-3">
-                        {item.sku} · мин. {MIN_QTY}
+                      <div className="tnum shrink-0 font-display text-sm font-semibold">
+                        {formatRub(item.priceRub * item.qty)}
                       </div>
                     </div>
 
-                    <div className="flex items-end justify-between">
+                    {/* Подстрока: qty × цена */}
+                    <div className="tnum font-mono text-[11.5px] text-ink-3">
+                      {item.qty} × {formatRub(item.priceRub)}
+                    </div>
+
+                    {/* Нижний блок: степпер + удалить */}
+                    <div className="mt-1 flex items-center justify-between">
                       <QtyStepper
                         value={item.qty}
                         min={MIN_QTY}
@@ -115,17 +123,12 @@ export function CartDrawer({ open, onOpenChange }: Props) {
                         onInc={() => setQty(item.productId, item.qty + 1)}
                         onInput={(n) => setQty(item.productId, n)}
                       />
-                      <div className="text-right">
-                        <div className="tnum font-display text-sm font-semibold">
-                          {formatRub(item.priceRub * item.qty)}
-                        </div>
-                        <button
-                          onClick={() => remove(item.productId)}
-                          className="font-mono text-[10.5px] uppercase tracking-wider text-ink-3 transition-colors hover:text-cinnabar"
-                        >
-                          Удалить
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => remove(item.productId)}
+                        className="font-mono text-[10.5px] uppercase tracking-wider text-ink-3 transition-colors hover:text-cinnabar"
+                      >
+                        Удалить
+                      </button>
                     </div>
                   </div>
                 </li>
