@@ -10,7 +10,7 @@
 'use client'
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { SIZE_BUCKET_LABELS } from '@/lib/constants'
 import type { CatalogResult } from '@/lib/queries/catalog'
@@ -38,10 +38,39 @@ export function FiltersSidebar({ filters, inDrawer = false, hideCategories = fal
   const [pending, startTransition] = useTransition()
 
   // Текущие значения фильтров из URL
-  const selectedCategories = csvParam(searchParams.get('category'))
-  const selectedMaterials = csvParam(searchParams.get('material'))
-  const selectedStyles = csvParam(searchParams.get('style'))
-  const selectedSizes = csvParam(searchParams.get('size'))
+  const urlCategories = csvParam(searchParams.get('category'))
+  const urlMaterials = csvParam(searchParams.get('material'))
+  const urlStyles = csvParam(searchParams.get('style'))
+  const urlSizes = csvParam(searchParams.get('size'))
+
+  // Локальное «оптимистичное» состояние — обновляется МГНОВЕННО при клике,
+  // а URL (и серверный запрос) — через debounce 300мс. Это убирает тормоза
+  // при множественных кликах: пользователь видит галки моментально, refetch
+  // запускается только когда он закончил кликать.
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(urlCategories)
+  const [selectedMaterials, setSelectedMaterials] = useState<string[]>(urlMaterials)
+  const [selectedStyles, setSelectedStyles] = useState<string[]>(urlStyles)
+  const [selectedSizes, setSelectedSizes] = useState<string[]>(urlSizes)
+
+  // Если URL поменялся снаружи (back/forward navigation) — синхронизируем.
+  // Здесь join'им в строку, чтобы избежать «новый массив каждый рендер» проблем.
+  const urlCategoriesKey = urlCategories.join(',')
+  const urlMaterialsKey = urlMaterials.join(',')
+  const urlStylesKey = urlStyles.join(',')
+  const urlSizesKey = urlSizes.join(',')
+
+  useEffect(() => {
+    setSelectedCategories(urlCategoriesKey ? urlCategoriesKey.split(',') : [])
+  }, [urlCategoriesKey])
+  useEffect(() => {
+    setSelectedMaterials(urlMaterialsKey ? urlMaterialsKey.split(',') : [])
+  }, [urlMaterialsKey])
+  useEffect(() => {
+    setSelectedStyles(urlStylesKey ? urlStylesKey.split(',') : [])
+  }, [urlStylesKey])
+  useEffect(() => {
+    setSelectedSizes(urlSizesKey ? urlSizesKey.split(',') : [])
+  }, [urlSizesKey])
 
   // Локальное состояние для price input'ов (debounce при печати)
   const urlMin = searchParams.get('min_price') ?? ''
@@ -55,31 +84,82 @@ export function FiltersSidebar({ filters, inDrawer = false, hideCategories = fal
     setMaxPrice(urlMax)
   }, [urlMin, urlMax])
 
-  const setUrlParam = (
-    updates: Array<[key: string, value: string | null]>
-  ) => {
-    const next = new URLSearchParams(searchParams.toString())
-    for (const [key, value] of updates) {
-      if (value === null || value === '') {
-        next.delete(key)
-      } else {
-        next.set(key, value)
+  const setUrlParam = useCallback(
+    (updates: Array<[key: string, value: string | null]>) => {
+      const next = new URLSearchParams(searchParams.toString())
+      for (const [key, value] of updates) {
+        if (value === null || value === '') {
+          next.delete(key)
+        } else {
+          next.set(key, value)
+        }
       }
-    }
-    // Любое изменение фильтра → page=1
-    next.delete('page')
+      // Любое изменение фильтра → page=1
+      next.delete('page')
 
-    const qs = next.toString()
-    startTransition(() => {
-      router.push(qs ? `${pathname}?${qs}` : pathname)
-    })
+      const qs = next.toString()
+      const href = qs ? `${pathname}?${qs}` : pathname
+      startTransition(() => {
+        // router.replace вместо push — не засоряем history каждым кликом.
+        // scroll:false — не дёргаем прокрутку в начало страницы.
+        router.replace(href, { scroll: false })
+      })
+    },
+    [searchParams, pathname, router]
+  )
+
+  // Дебаунсер: накапливаем выбранные значения чекбоксов локально и пушим
+  // в URL раз в 300мс. Если пользователь быстро отмечает 5 категорий — URL
+  // обновится один раз, а не 5 раз.
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const scheduleCsvUpdate = useCallback(
+    (key: string, list: string[]) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        setUrlParam([[key, list.length > 0 ? list.join(',') : null]])
+      }, 300)
+    },
+    [setUrlParam]
+  )
+
+  // На размонтировании отменяем pending update
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  const toggleCategory = (value: string) => {
+    const next = selectedCategories.includes(value)
+      ? selectedCategories.filter((v) => v !== value)
+      : [...selectedCategories, value]
+    setSelectedCategories(next)
+    scheduleCsvUpdate('category', next)
   }
 
-  const toggleCsv = (key: string, currentList: string[], value: string) => {
-    const next = currentList.includes(value)
-      ? currentList.filter((v) => v !== value)
-      : [...currentList, value]
-    setUrlParam([[key, next.length > 0 ? next.join(',') : null]])
+  const toggleMaterial = (value: string) => {
+    const next = selectedMaterials.includes(value)
+      ? selectedMaterials.filter((v) => v !== value)
+      : [...selectedMaterials, value]
+    setSelectedMaterials(next)
+    scheduleCsvUpdate('material', next)
+  }
+
+  const toggleStyle = (value: string) => {
+    const next = selectedStyles.includes(value)
+      ? selectedStyles.filter((v) => v !== value)
+      : [...selectedStyles, value]
+    setSelectedStyles(next)
+    scheduleCsvUpdate('style', next)
+  }
+
+  const toggleSize = (value: string) => {
+    const next = selectedSizes.includes(value)
+      ? selectedSizes.filter((v) => v !== value)
+      : [...selectedSizes, value]
+    setSelectedSizes(next)
+    scheduleCsvUpdate('size', next)
   }
 
   const applyPriceRange = () => {
@@ -98,6 +178,17 @@ export function FiltersSidebar({ filters, inDrawer = false, hideCategories = fal
     urlMax !== ''
 
   const clearAll = () => {
+    // Локально сбрасываем все чекбоксы (мгновенно для UI)
+    setSelectedCategories([])
+    setSelectedMaterials([])
+    setSelectedStyles([])
+    setSelectedSizes([])
+    setMinPrice('')
+    setMaxPrice('')
+
+    // Отменяем pending debounce
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
     // Сохраняем только search и sort, остальное сбрасываем
     const next = new URLSearchParams()
     const search = searchParams.get('search')
@@ -106,7 +197,7 @@ export function FiltersSidebar({ filters, inDrawer = false, hideCategories = fal
     if (sort) next.set('sort', sort)
     const qs = next.toString()
     startTransition(() => {
-      router.push(qs ? `${pathname}?${qs}` : pathname)
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     })
   }
 
@@ -166,7 +257,7 @@ export function FiltersSidebar({ filters, inDrawer = false, hideCategories = fal
                     <input
                       type="checkbox"
                       checked={active}
-                      onChange={() => toggleCsv('category', selectedCategories, cat.slug)}
+                      onChange={() => toggleCategory(cat.slug)}
                       className="sr-only"
                     />
                     <span className="flex-1 truncate text-ink">{cat.name_ru}</span>
@@ -192,7 +283,7 @@ export function FiltersSidebar({ filters, inDrawer = false, hideCategories = fal
               return (
                 <button
                   key={opt.value}
-                  onClick={() => toggleCsv('size', selectedSizes, opt.value)}
+                  onClick={() => toggleSize(opt.value)}
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs transition-colors',
                     active
@@ -250,7 +341,7 @@ export function FiltersSidebar({ filters, inDrawer = false, hideCategories = fal
           <CheckboxList
             items={filters.materials.filter((m) => m.value !== null) as Array<{ value: string; count: number }>}
             selected={selectedMaterials}
-            onToggle={(v) => toggleCsv('material', selectedMaterials, v)}
+            onToggle={(v) => toggleMaterial(v)}
           />
         </FilterGroup>
       )}
@@ -261,7 +352,7 @@ export function FiltersSidebar({ filters, inDrawer = false, hideCategories = fal
           <CheckboxList
             items={filters.styles.filter((s) => s.value !== null) as Array<{ value: string; count: number }>}
             selected={selectedStyles}
-            onToggle={(v) => toggleCsv('style', selectedStyles, v)}
+            onToggle={(v) => toggleStyle(v)}
           />
         </FilterGroup>
       )}

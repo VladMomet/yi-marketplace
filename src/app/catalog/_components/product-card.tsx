@@ -16,18 +16,12 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { useCart, MIN_QTY } from '@/hooks/use-cart'
 import { useCity } from '@/hooks/use-city'
 import { applyCityMultiplier } from '@/lib/city-pricing'
 import { formatRub } from '@/lib/utils'
 import type { CatalogItem } from '@/lib/queries/catalog'
-
-function buildProxyUrl(url: string): string {
-  if (url.startsWith('https://cbu')) {
-    return `/api/img-proxy?url=${encodeURIComponent(url)}`
-  }
-  return url
-}
 
 export function ProductCard({ product }: { product: CatalogItem }) {
   const { add, setQty, getQty } = useCart()
@@ -88,21 +82,26 @@ export function ProductCard({ product }: { product: CatalogItem }) {
       <div className="relative aspect-square overflow-hidden bg-paper-2">
         {mainPhoto ? (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={buildProxyUrl(mainPhoto.url)}
+            <Image
+              src={mainPhoto.url}
               alt={product.title_ru}
+              fill
+              // sizes — Vercel ресайзит под нужный размер. На мобилке карточка
+              // ~50vw (две колонки), на десктопе ~25vw (4 колонки).
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover transition-opacity duration-500 group-hover:opacity-0"
+              // Не loading="eager" — карточки далеко вниз лениво грузятся.
               loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover transition-opacity duration-500 group-hover:opacity-0"
             />
             {secondPhoto !== mainPhoto && (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={buildProxyUrl(secondPhoto.url)}
+              <Image
+                src={secondPhoto.url}
                 alt=""
-                loading="lazy"
+                fill
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 aria-hidden
-                className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                className="object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                loading="lazy"
               />
             )}
           </>

@@ -49,7 +49,7 @@ export function CatalogToolbar({ total, onOpenMobileFilters }: Props) {
     next.delete('page')
     const qs = next.toString()
     startTransition(() => {
-      router.push(qs ? `${pathname}?${qs}` : pathname)
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
     })
   }
 

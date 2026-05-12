@@ -6,6 +6,7 @@
  */
 
 import Link from 'next/link'
+import Image from 'next/image'
 
 interface HeroPhoto {
   url: string
@@ -16,13 +17,6 @@ interface Props {
   totalProducts: number
   totalCategories: number
   photos: HeroPhoto[]
-}
-
-function buildProxyUrl(url: string): string {
-  if (url.startsWith('https://cbu')) {
-    return `/api/img-proxy?url=${encodeURIComponent(url)}`
-  }
-  return url
 }
 
 export function HeroSection({ totalProducts, totalCategories, photos }: Props) {
@@ -92,12 +86,15 @@ export function HeroSection({ totalProducts, totalCategories, photos }: Props) {
                       : 'translateY(-10px)',
                 }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={buildProxyUrl(photo.url)}
+                <Image
+                  src={photo.url}
                   alt={photo.alt}
-                  className="h-full w-full object-cover"
-                  loading="eager"
+                  fill
+                  sizes="(max-width: 1024px) 50vw, 30vw"
+                  className="object-cover"
+                  // Hero — выше fold, грузим сразу. Только первые 2 фото
+                  // приоритетны (LCP), остальные обычно.
+                  priority={idx < 2}
                 />
               </div>
             ))}

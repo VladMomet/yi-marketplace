@@ -220,15 +220,14 @@ export async function queryCatalog(q: CatalogQuery): Promise<CatalogResult> {
   const facetBase: SQL[] = [eq(products.status, 'active')]
   if (categoryRecord) facetBase.push(eq(products.categoryId, categoryRecord.id))
 
-  // Категории — особый фасет: НЕ учитываем сам фильтр по категориям, чтобы
-  // пользователь видел сколько товаров в каждой категории даже когда уже
-  // выбрал несколько. Но учитываем все остальные фильтры (цена, материал и т.д.),
-  // чтобы счётчики были релевантны.
-  // Если установлена single-категория (страница /catalog/[category]) — список
-  // категорий не нужен (фильтр там не показывается), вернём пустой массив.
-  const categoriesFacet = categoryRecord
-    ? []
-    : await db
+  // ВАЖНО: все 5 фасет-запросов независимы друг от друга — запускаем параллельно
+  // через Promise.all. Это в 4-5 раз быстрее чем последовательно (особенно на
+  // serverless, где каждый запрос имеет round-trip к Neon в Frankfurt).
+  const categoriesFacetPromise: Promise<
+    Array<{ slug: string; nameRu: string; count: number }>
+  > = categoryRecord
+    ? Promise.resolve([])
+    : db
         .select({
           slug: categories.slug,
           nameRu: categories.nameRu,
@@ -254,7 +253,7 @@ export async function queryCatalog(q: CatalogQuery): Promise<CatalogResult> {
         .groupBy(categories.slug, categories.nameRu, categories.sortOrder)
         .orderBy(asc(categories.sortOrder), asc(categories.nameRu))
 
-  const materials = await db
+  const materialsPromise = db
     .select({ value: products.material, count: sql<number>`count(*)::int` })
     .from(products)
     .where(and(...facetBase, sql`${products.material} IS NOT NULL`))
@@ -262,7 +261,7 @@ export async function queryCatalog(q: CatalogQuery): Promise<CatalogResult> {
     .orderBy(desc(sql`count(*)`))
     .limit(15)
 
-  const styles = await db
+  const stylesPromise = db
     .select({ value: products.style, count: sql<number>`count(*)::int` })
     .from(products)
     .where(and(...facetBase, sql`${products.style} IS NOT NULL`))
@@ -270,19 +269,28 @@ export async function queryCatalog(q: CatalogQuery): Promise<CatalogResult> {
     .orderBy(desc(sql`count(*)`))
     .limit(10)
 
-  const sizesRaw = await db
+  const sizesPromise = db
     .select({ value: products.sizeBucket, count: sql<number>`count(*)::int` })
     .from(products)
     .where(and(...facetBase))
     .groupBy(products.sizeBucket)
 
-  const [priceRange] = await db
+  const priceRangePromise = db
     .select({
       min: sql<number>`coalesce(min(${products.priceRub}), 0)::int`,
       max: sql<number>`coalesce(max(${products.priceRub}), 0)::int`,
     })
     .from(products)
     .where(and(...facetBase))
+
+  const [categoriesFacet, materials, styles, sizesRaw, priceRangeRows] = await Promise.all([
+    categoriesFacetPromise,
+    materialsPromise,
+    stylesPromise,
+    sizesPromise,
+    priceRangePromise,
+  ])
+  const priceRange = priceRangeRows[0] ?? { min: 0, max: 0 }
 
   return {
     items: rows.map((r) => ({
