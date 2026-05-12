@@ -37,12 +37,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: product.title_ru,
     description:
       product.description?.slice(0, 160) ??
-      `${product.title_ru} из Китая оптом. Цена с доставкой ${formatRub(product.price_rub).replace(' ₽', '')} ₽. Документы, ВЭД.`,
+      `${product.title_ru} из Китая оптом. Цена с доставкой ${formatRub(product.price.rub).replace(' ₽', '')} ₽. Документы, ВЭД.`,
     openGraph: {
       title: product.title_ru,
       description:
         product.description?.slice(0, 200) ??
-        `Цена с доставкой ${formatRub(product.price_rub)}`,
+        `Цена с доставкой ${formatRub(product.price.rub)}`,
       images: ogImage ? [{ url: ogImage, width: 1200, height: 1200 }] : undefined,
       type: 'website',
     },
