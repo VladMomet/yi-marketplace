@@ -8,20 +8,20 @@ import { CookieBanner } from '@/components/cookie-banner'
 import './globals.css'
 
 const monaSans = Mona_Sans({
-  subsets: ['latin', 'cyrillic'],
+  subsets: ['latin', 'cyrillic-ext'],
   variable: '--font-mona',
   display: 'swap',
   weight: ['300', '400', '500', '600', '700', '800'],
 })
 
 const hanken = Hanken_Grotesk({
-  subsets: ['latin', 'cyrillic'],
+  subsets: ['latin', 'latin-ext'],
   variable: '--font-hanken',
   display: 'swap',
 })
 
 const jetbrains = JetBrains_Mono({
-  subsets: ['latin', 'cyrillic'],
+  subsets: ['latin', 'cyrillic-ext'],
   variable: '--font-jetbrains',
   display: 'swap',
 })
