@@ -10,7 +10,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
 interface Photo {
@@ -22,6 +21,13 @@ interface Photo {
 interface Props {
   photos: Photo[]
   title: string
+}
+
+function buildProxyUrl(url: string): string {
+  if (url.startsWith('https://cbu')) {
+    return `/api/img-proxy?url=${encodeURIComponent(url)}`
+  }
+  return url
 }
 
 export function ProductGallery({ photos, title }: Props) {
@@ -63,15 +69,13 @@ export function ProductGallery({ photos, title }: Props) {
     <div className="flex flex-col gap-3 lg:flex-row-reverse">
       {/* Главное фото */}
       <div className="relative aspect-square w-full flex-1 overflow-hidden rounded-xl bg-paper-2">
-        <Image
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           key={activePhoto.url}
-          src={activePhoto.url}
+          src={buildProxyUrl(activePhoto.url)}
           alt={title}
-          fill
-          sizes="(max-width: 1024px) 100vw, 50vw"
-          // Главное фото на странице товара — выше fold, грузим сразу
-          priority
-          className="object-cover animate-[fadeIn_400ms_ease]"
+          className="absolute inset-0 h-full w-full object-cover animate-[fadeIn_400ms_ease]"
+          loading="eager"
         />
 
         {/* Стрелки навигации (только если >1 фото) */}
@@ -138,14 +142,12 @@ export function ProductGallery({ photos, title }: Props) {
                 aria-label={`Фото ${idx + 1}`}
                 aria-current={active ? 'true' : 'false'}
               >
-                {/* Thumbnail-картинка */}
-                <Image
-                  src={photo.url}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={buildProxyUrl(photo.url)}
                   alt=""
-                  fill
-                  sizes="80px"
                   loading="lazy"
-                  className="object-cover"
+                  className="h-full w-full object-cover"
                 />
               </button>
             )

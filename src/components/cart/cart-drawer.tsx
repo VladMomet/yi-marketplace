@@ -9,7 +9,6 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { useCart, MIN_QTY } from '@/hooks/use-cart'
 import { useCity } from '@/hooks/use-city'
 import {
@@ -26,6 +25,14 @@ import { formatRub, pluralize } from '@/lib/utils'
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
+}
+
+function buildProxyUrl(url: string | null): string | null {
+  if (!url) return null
+  if (url.startsWith('https://cbu')) {
+    return `/api/img-proxy?url=${encodeURIComponent(url)}`
+  }
+  return url
 }
 
 export function CartDrawer({ open, onOpenChange }: Props) {
@@ -73,18 +80,16 @@ export function CartDrawer({ open, onOpenChange }: Props) {
         ) : (
           <ul className="divide-y divide-hair">
             {items.map((item) => {
+              const photoUrl = buildProxyUrl(item.photo)
               return (
                 <li key={item.productId} className="flex gap-4 px-5 py-5 lg:px-6">
-                  {item.photo ? (
-                    <div className="relative h-20 w-20 flex-none overflow-hidden rounded-md bg-paper-2">
-                      <Image
-                        src={item.photo}
-                        alt={item.title}
-                        fill
-                        sizes="80px"
-                        className="object-cover"
-                      />
-                    </div>
+                  {photoUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={photoUrl}
+                      alt={item.title}
+                      className="h-20 w-20 flex-none rounded-md bg-paper-2 object-cover"
+                    />
                   ) : (
                     <div className="h-20 w-20 flex-none rounded-md bg-paper-2" />
                   )}

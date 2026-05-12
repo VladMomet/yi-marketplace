@@ -5,12 +5,14 @@
  *
  * Зачем: 1) скрываем источник (в DevTools видно только наш домен)
  *        2) даём возможность позже перейти на S3 без правки фронта
- *        3) кэшируем агрессивно
+ *        3) кэшируем агрессивно — 7 дней на клиенте + Vercel edge cache
  *
  * Безопасность: разрешён ТОЛЬКО whitelist хостов.
+ *
+ * Edge runtime — без cold start, отвечает за 50-200мс (вместо 1-2с на Node.js).
  */
 
-import { NextResponse } from 'next/server'
+export const runtime = 'edge'
 
 const ALLOWED_HOSTS = new Set([
   'cbu01.alicdn.com',
@@ -54,7 +56,11 @@ export async function GET(req: Request) {
     return new Response(upstream.body, {
       headers: {
         'Content-Type': upstream.headers.get('content-type') ?? 'image/jpeg',
-        'Cache-Control': 'public, max-age=604800, immutable', // 7 дней
+        // 7 дней браузерный кеш + immutable (браузер не делает revalidation)
+        'Cache-Control': 'public, max-age=604800, immutable',
+        // Vercel CDN кеш — 30 дней (s-maxage). Большое значение, т.к. URL'ы
+        // фоток с 1688 неизменны — товар тот же → картинка та же.
+        'CDN-Cache-Control': 'public, max-age=2592000, immutable',
         'X-Content-Type-Options': 'nosniff',
       },
     })
