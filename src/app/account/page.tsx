@@ -5,6 +5,8 @@
  * Активная вкладка читается из ?tab=. По умолчанию «orders».
  */
 
+export const dynamic = 'force-dynamic'
+
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'

@@ -5,6 +5,8 @@
  * создание заказа) — в клиентском CheckoutFlow.
  */
 
+export const dynamic = 'force-dynamic'
+
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { CheckoutFlow } from './_components/checkout-flow'

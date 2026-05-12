@@ -4,6 +4,8 @@
  * SSR. Фильтры читаются из URL (searchParams).
  */
 
+export const dynamic = 'force-dynamic'
+
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { queryCatalog } from '@/lib/queries/catalog'

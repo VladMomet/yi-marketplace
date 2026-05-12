@@ -5,6 +5,8 @@
  * 404 если заказа нет, 403 если он не того пользователя.
  */
 
+export const dynamic = 'force-dynamic'
+
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect, forbidden } from 'next/navigation'
