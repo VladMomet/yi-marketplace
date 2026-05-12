@@ -49,7 +49,11 @@ export function parseCatalogSearchParams(
     : undefined
 
   return {
-    category: options?.category ?? strOrUndef(params.category),
+    category: options?.category ?? undefined,
+    // Если страница /catalog/[category] передала свою категорию — query-param
+    // `?category=...` игнорируем (single-категория важнее). Иначе берём список
+    // из CSV-параметра (`?category=zerkala,divany`).
+    categories: options?.category ? undefined : csvOrUndef(params.category),
     search: strOrUndef(params.search),
     minPrice: numOrUndef(params.min_price),
     maxPrice: numOrUndef(params.max_price),

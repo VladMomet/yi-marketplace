@@ -18,6 +18,11 @@ import type { CatalogResult } from '@/lib/queries/catalog'
 interface Props {
   filters: CatalogResult['filters']
   inDrawer?: boolean
+  /**
+   * Если страница /catalog/[category] — категория уже выбрана через URL-сегмент
+   * и фильтр чекбоксов не нужен (он бы дублировал/конфликтовал с URL-роутингом).
+   */
+  hideCategories?: boolean
 }
 
 const SIZE_OPTIONS = [
@@ -26,13 +31,14 @@ const SIZE_OPTIONS = [
   { value: 'large', label: SIZE_BUCKET_LABELS.large },
 ] as const
 
-export function FiltersSidebar({ filters, inDrawer = false }: Props) {
+export function FiltersSidebar({ filters, inDrawer = false, hideCategories = false }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
 
   // Текущие значения фильтров из URL
+  const selectedCategories = csvParam(searchParams.get('category'))
   const selectedMaterials = csvParam(searchParams.get('material'))
   const selectedStyles = csvParam(searchParams.get('style'))
   const selectedSizes = csvParam(searchParams.get('size'))
@@ -84,6 +90,7 @@ export function FiltersSidebar({ filters, inDrawer = false }: Props) {
   }
 
   const hasActiveFilters =
+    selectedCategories.length > 0 ||
     selectedMaterials.length > 0 ||
     selectedStyles.length > 0 ||
     selectedSizes.length > 0 ||
@@ -121,6 +128,58 @@ export function FiltersSidebar({ filters, inDrawer = false }: Props) {
           </button>
         )}
       </div>
+
+      {/* Категория — первый блок. Скрывается на /catalog/[category] */}
+      {!hideCategories && filters.categories.length > 0 && (
+        <FilterGroup title="Категория">
+          <ul className="-mx-1 max-h-[320px] space-y-px overflow-y-auto pr-1">
+            {filters.categories.map((cat) => {
+              const active = selectedCategories.includes(cat.slug)
+              return (
+                <li key={cat.slug}>
+                  <label
+                    className={cn(
+                      'flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors',
+                      active ? 'bg-paper-2' : 'hover:bg-paper-2'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'grid h-4 w-4 flex-none place-items-center rounded border transition-colors',
+                        active
+                          ? 'border-ink bg-ink text-paper'
+                          : 'border-hair-2 bg-surface-hi'
+                      )}
+                    >
+                      {active && (
+                        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                          <path
+                            d="M2 5.5l2 2 4-5"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={active}
+                      onChange={() => toggleCsv('category', selectedCategories, cat.slug)}
+                      className="sr-only"
+                    />
+                    <span className="flex-1 truncate text-ink">{cat.name_ru}</span>
+                    <span className="tnum font-mono text-[10.5px] text-ink-3">
+                      {cat.count}
+                    </span>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        </FilterGroup>
+      )}
 
       {/* Размер */}
       {filters.sizes.length > 0 && (

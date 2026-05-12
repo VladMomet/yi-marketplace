@@ -19,13 +19,16 @@ import type { CatalogResult } from '@/lib/queries/catalog'
 
 export function CatalogView({ data }: { data: CatalogResult }) {
   const [filtersOpen, setFiltersOpen] = useState(false)
+  // На /catalog/[category] категория уже зафиксирована через URL-сегмент — там
+  // чекбоксы категорий не нужны. Признак: data.category не null.
+  const hideCategories = data.category !== null
 
   return (
     <div className="container mx-auto max-w-[1480px] px-6 py-10 lg:px-8 lg:py-14">
       <div className="grid gap-8 lg:grid-cols-[260px_1fr] lg:gap-10 xl:grid-cols-[280px_1fr] xl:gap-14">
         {/* Sidebar — десктоп */}
         <div className="hidden lg:block">
-          <FiltersSidebar filters={data.filters} />
+          <FiltersSidebar filters={data.filters} hideCategories={hideCategories} />
         </div>
 
         {/* Основной блок */}
@@ -58,7 +61,7 @@ export function CatalogView({ data }: { data: CatalogResult }) {
           <SheetClose onClose={() => setFiltersOpen(false)} />
         </SheetHeader>
         <SheetBody>
-          <FiltersSidebar filters={data.filters} inDrawer />
+          <FiltersSidebar filters={data.filters} inDrawer hideCategories={hideCategories} />
         </SheetBody>
         <SheetFooter>
           <Button onClick={() => setFiltersOpen(false)} className="w-full" size="lg">

@@ -10,7 +10,14 @@ import { db } from '@/db'
 import { products, categories, productPhotos } from '@/db/schema'
 
 export interface CatalogQuery {
-  category?: string // slug
+  /** Slug одной категории (для legacy-страницы `/catalog/[category]`) */
+  category?: string
+  /**
+   * Множественный фильтр по slug категорий — используется на общей странице
+   * `/catalog?category=zerkala,divany`. Если задан вместе с `category`,
+   * приоритет у `category` (URL-сегмент важнее query-параметра).
+   */
+  categories?: string[]
   search?: string
   minPrice?: number
   maxPrice?: number
@@ -46,6 +53,13 @@ export interface CatalogResult {
   page: number
   per_page: number
   filters: {
+    /**
+     * Все категории со счётчиками. Используется для рендеринга чекбоксов
+     * сверху сайдбара. Счётчики НЕ учитывают текущий фильтр по категориям
+     * (чтобы пользователь видел сколько товаров в других категориях),
+     * но учитывают остальные фильтры (материал, цена и т.д.).
+     */
+    categories: Array<{ slug: string; name_ru: string; count: number }>
     materials: Array<{ value: string | null; count: number }>
     styles: Array<{ value: string | null; count: number }>
     sizes: Array<{ value: string; count: number }>
@@ -79,10 +93,32 @@ export async function queryCatalog(q: CatalogQuery): Promise<CatalogResult> {
         total: 0,
         page,
         per_page: perPage,
-        filters: { materials: [], styles: [], sizes: [], price_range: { min: 0, max: 0 } },
+        filters: {
+          categories: [],
+          materials: [],
+          styles: [],
+          sizes: [],
+          price_range: { min: 0, max: 0 },
+        },
         category: null,
       }
     }
+  } else if (q.categories && q.categories.length > 0) {
+    // Множественный выбор: резолвим slug'и → id и фильтруем по IN
+    const cats = await db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(inArray(categories.slug, q.categories))
+    if (cats.length > 0) {
+      conditions.push(
+        inArray(
+          products.categoryId,
+          cats.map((c) => c.id)
+        )
+      )
+    }
+    // Если ни одного slug не нашли — фильтр игнорируется (показываем всё),
+    // потому что иначе UX страдает: непонятно почему пусто.
   }
 
   if (q.minPrice !== undefined) conditions.push(gte(products.priceRub, String(q.minPrice)))
@@ -184,6 +220,40 @@ export async function queryCatalog(q: CatalogQuery): Promise<CatalogResult> {
   const facetBase: SQL[] = [eq(products.status, 'active')]
   if (categoryRecord) facetBase.push(eq(products.categoryId, categoryRecord.id))
 
+  // Категории — особый фасет: НЕ учитываем сам фильтр по категориям, чтобы
+  // пользователь видел сколько товаров в каждой категории даже когда уже
+  // выбрал несколько. Но учитываем все остальные фильтры (цена, материал и т.д.),
+  // чтобы счётчики были релевантны.
+  // Если установлена single-категория (страница /catalog/[category]) — список
+  // категорий не нужен (фильтр там не показывается), вернём пустой массив.
+  const categoriesFacet = categoryRecord
+    ? []
+    : await db
+        .select({
+          slug: categories.slug,
+          nameRu: categories.nameRu,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(products)
+        .innerJoin(categories, eq(products.categoryId, categories.id))
+        .where(
+          and(
+            eq(products.status, 'active'),
+            // Применяем те же фильтры, что и к основному запросу,
+            // КРОМЕ фильтра по самим категориям (categories[]) — чтобы счётчики
+            // других категорий тоже были видны.
+            ...(q.minPrice !== undefined ? [gte(products.priceRub, String(q.minPrice))] : []),
+            ...(q.maxPrice !== undefined ? [lte(products.priceRub, String(q.maxPrice))] : []),
+            ...(q.materials && q.materials.length > 0
+              ? [inArray(products.material, q.materials)]
+              : []),
+            ...(q.styles && q.styles.length > 0 ? [inArray(products.style, q.styles)] : []),
+            ...(q.sizes && q.sizes.length > 0 ? [inArray(products.sizeBucket, q.sizes)] : [])
+          )
+        )
+        .groupBy(categories.slug, categories.nameRu, categories.sortOrder)
+        .orderBy(asc(categories.sortOrder), asc(categories.nameRu))
+
   const materials = await db
     .select({ value: products.material, count: sql<number>`count(*)::int` })
     .from(products)
@@ -236,6 +306,11 @@ export async function queryCatalog(q: CatalogQuery): Promise<CatalogResult> {
     page,
     per_page: perPage,
     filters: {
+      categories: categoriesFacet.map((c) => ({
+        slug: c.slug,
+        name_ru: c.nameRu,
+        count: c.count,
+      })),
       materials,
       styles,
       sizes: sizesRaw,
