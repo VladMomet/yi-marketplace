@@ -17,7 +17,7 @@ import { NextResponse } from 'next/server'
 import { eq, desc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { sourcingRequests, users } from '@/db/schema'
+import { sourcingRequests, users, companies, cities } from '@/db/schema'
 import { createSourcingSchema } from '@/lib/validation'
 import { generateSourcingNumber } from '@/lib/utils'
 import { notifyNewSourcing } from '@/lib/telegram'
@@ -110,6 +110,9 @@ export async function POST(req: Request) {
     }
   }
 
+  // Город доставки (из формы) — нужен менеджеру чтобы прикинуть логистику
+  const citySlugRaw = String(form.get('city_slug') ?? '').trim()
+
   // Создаём заявку (без записи URL'ов фото — мы их не храним больше)
   const number = generateSourcingNumber()
   const [request] = await db
@@ -138,6 +141,27 @@ export async function POST(req: Request) {
       .limit(1)
 
     if (user) {
+      // Если юр.лицо — достаём компанию для отображения наименования и ИНН
+      let company: { name: string; inn: string } | null = null
+      if (user.type === 'legal') {
+        const [c] = await db
+          .select()
+          .from(companies)
+          .where(eq(companies.userId, user.id))
+          .limit(1)
+        company = c ? { name: c.name, inn: c.inn } : null
+      }
+
+      // Город — сначала пробуем по slug из формы, потом дефолтный из БД
+      let cityName = 'Москва'
+      if (citySlugRaw) {
+        const [c] = await db.select().from(cities).where(eq(cities.slug, citySlugRaw)).limit(1)
+        if (c) cityName = c.nameRu
+      } else {
+        const [c] = await db.select().from(cities).where(eq(cities.isDefault, true)).limit(1)
+        if (c) cityName = c.nameRu
+      }
+
       // Конвертим File → Buffer
       const photos = await Promise.all(
         photoFiles.map(async (f, idx) => ({
@@ -152,6 +176,10 @@ export async function POST(req: Request) {
         number,
         userName: user.name,
         userPhone: user.phone,
+        userType: user.type,
+        companyName: company?.name,
+        companyInn: company?.inn,
+        cityName,
         description: input.description,
         qty: input.qty,
         budgetRub: input.budget_rub,

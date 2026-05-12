@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSession, signIn } from 'next-auth/react'
+import { useCity } from '@/hooks/use-city'
 import { Button } from '@/components/ui/button'
 import {
   Input,
@@ -66,6 +67,7 @@ const initial: FormState = {
 
 export function SourcingForm() {
   const { data: session, status } = useSession()
+  const { selected: city } = useCity()
   const isAuthenticated = !!session?.user
   const isLoading = status === 'loading'
 
@@ -176,6 +178,10 @@ export function SourcingForm() {
       fd.append('qty', String(qtyNum))
       if (form.budget) {
         fd.append('budget_rub', String(parseFloat(form.budget)))
+      }
+      // Город доставки — берём из useCity (он же в шапке сайта)
+      if (city?.slug) {
+        fd.append('city_slug', city.slug)
       }
       form.photoFiles.forEach((file, idx) => {
         fd.append(`photo_${idx}`, file, file.name)

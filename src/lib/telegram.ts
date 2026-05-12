@@ -40,6 +40,12 @@ export interface SourcingNotificationPayload {
   number: string // SRC-654321
   userName: string
   userPhone: string
+  /** Физ или юр лицо. Для юр — также передаются companyName и companyInn. */
+  userType: 'physical' | 'legal'
+  companyName?: string | null
+  companyInn?: string | null
+  /** Город доставки (для понимания логистики при подборе) */
+  cityName: string
   description: string
   qty: number
   budgetRub?: number | null
@@ -152,16 +158,15 @@ async function sendPhotoBuffer(
 /**
  * Уведомление о новом заказе.
  *
- * Формат (см. бриф 7.2):
- * 🆕 НОВЫЙ ЗАКАЗ — YI-238472
- * 👤 Иван Петров (физ. лицо)
- * 📱 +7 999 123-45-67
- * 🏙 Доставка: Москва
- * ...
+ * Визуально отличается от заявки на подбор зелёной «полосой» в шапке
+ * (деньги → зелёный). См. notifyNewSourcing для контраста (жёлтый).
  */
 export async function notifyNewOrder(payload: OrderNotificationPayload): Promise<void> {
   const lines: string[] = []
-  lines.push(`🆕 НОВЫЙ ЗАКАЗ — ${payload.number}`)
+  // Шапка-разделитель: зелёная полоса = заказ (деньги в кассе)
+  lines.push('🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢')
+  lines.push(`💰 НОВЫЙ ЗАКАЗ — ${payload.number}`)
+  lines.push('🟢🟢🟢🟢🟢🟢🟢🟢🟢🟢')
   lines.push('')
 
   // Клиент
@@ -214,16 +219,38 @@ export async function notifyNewOrder(payload: OrderNotificationPayload): Promise
  *
  * Затем отдельными сообщениями отправляются фото-референсы.
  */
+/**
+ * Уведомление о новой заявке на подбор.
+ *
+ * Визуально отличается от заказа жёлтой «полосой» в шапке
+ * (задача предстоит → жёлтый). Это помогает менеджеру быстро различать
+ * типы сообщений в общем потоке Telegram-канала.
+ *
+ * Затем отдельными сообщениями отправляются фото-референсы.
+ */
 export async function notifyNewSourcing(payload: SourcingNotificationPayload): Promise<void> {
   const lines: string[] = []
-  lines.push(`🔍 ПОДБОР — ${payload.number}`)
+  // Шапка-разделитель: жёлтая полоса = подбор (нужна работа сотрудника в Иу)
+  lines.push('🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡')
+  lines.push(`🔍 ЗАЯВКА НА ПОДБОР — ${payload.number}`)
+  lines.push('🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡')
   lines.push('')
-  lines.push(`👤 ${payload.userName}`)
+
+  // Клиент — с типом физ/юр (как у заказов)
+  if (payload.userType === 'legal' && payload.companyName) {
+    lines.push(`👤 ${payload.userName} (${payload.companyName})`)
+    if (payload.companyInn) lines.push(`🏢 ИНН: ${payload.companyInn}`)
+  } else {
+    lines.push(`👤 ${payload.userName} (физ. лицо)`)
+  }
   lines.push(`📱 ${payload.userPhone}`)
+  lines.push(`🏙 Доставка: ${payload.cityName}`)
   lines.push('')
+
   lines.push('📝 Описание:')
   lines.push(payload.description)
   lines.push('')
+
   lines.push(`📊 Кол-во: ${payload.qty} шт`)
   if (payload.budgetRub) {
     lines.push(`💰 Бюджет: ${formatRub(payload.budgetRub)}/шт`)

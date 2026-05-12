@@ -97,56 +97,74 @@ export function SourcingTab() {
   }
 
   return (
-    <ul className="space-y-3.5">
-      {requests.map((r) => (
-        <li
-          key={r.number}
-          className="rounded-xl border border-hair bg-surface-hi p-5 lg:p-6"
-        >
-          <header className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
-            <div className="flex items-baseline gap-3">
-              <span className="font-display text-lg font-semibold tracking-tight">
-                {r.number}
+    <div className="space-y-5">
+      {/* Шапка вкладки с CTA */}
+      <div className="flex items-center justify-between gap-4">
+        <p className="font-mono text-[10.5px] uppercase tracking-wider text-ink-3">
+          {requests.length} {pluralize(requests.length, 'заявка', 'заявки', 'заявок')}
+        </p>
+        <Link href="/sourcing">
+          <Button variant="primary" size="sm">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+              <rect x="5" width="2" height="12" rx="1" />
+              <rect y="5" width="12" height="2" rx="1" />
+            </svg>
+            Подобрать ещё
+          </Button>
+        </Link>
+      </div>
+
+      <ul className="space-y-3.5">
+        {requests.map((r) => (
+          <li
+            key={r.number}
+            className="rounded-xl border border-hair bg-surface-hi p-5 lg:p-6"
+          >
+            <header className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+              <div className="flex items-baseline gap-3">
+                <span className="font-display text-lg font-semibold tracking-tight">
+                  {r.number}
+                </span>
+                <StatusBadge status={r.status} type="sourcing" />
+              </div>
+              <span className="font-mono text-[10.5px] uppercase tracking-wider text-ink-3">
+                {formatDate(r.created_at)}
               </span>
-              <StatusBadge status={r.status} type="sourcing" />
-            </div>
-            <span className="font-mono text-[10.5px] uppercase tracking-wider text-ink-3">
-              {formatDate(r.created_at)}
-            </span>
-          </header>
+            </header>
 
-          <p className="mb-4 line-clamp-3 text-sm leading-relaxed text-ink-2">
-            {r.description}
-          </p>
+            <p className="mb-4 line-clamp-3 text-sm leading-relaxed text-ink-2">
+              {r.description}
+            </p>
 
-          {r.photos.length > 0 && (
-            <ul className="mb-4 flex flex-wrap gap-2">
-              {r.photos.map((url, i) => (
-                <li key={i}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={buildProxyUrl(url)}
-                    alt={`Референс ${i + 1}`}
-                    className="h-16 w-16 rounded-md bg-paper-2 object-cover"
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <footer className="flex flex-wrap items-baseline gap-x-5 gap-y-2 font-mono text-[10.5px] uppercase tracking-wider text-ink-3">
-            <span>
-              <span className="tnum text-ink">{r.qty}</span>{' '}
-              {pluralize(r.qty, 'шт', 'шт', 'шт')}
-            </span>
-            {r.budget_rub !== null && (
-              <span>
-                Бюджет: <span className="text-ink">{formatRub(r.budget_rub)}/шт</span>
-              </span>
+            {r.photos.length > 0 && (
+              <ul className="mb-4 flex flex-wrap gap-2">
+                {r.photos.map((url, i) => (
+                  <li key={i}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={buildProxyUrl(url)}
+                      alt={`Референс ${i + 1}`}
+                      className="h-16 w-16 rounded-md bg-paper-2 object-cover"
+                    />
+                  </li>
+                ))}
+              </ul>
             )}
-          </footer>
-        </li>
-      ))}
-    </ul>
+
+            <footer className="flex flex-wrap items-baseline gap-x-5 gap-y-2 font-mono text-[10.5px] uppercase tracking-wider text-ink-3">
+              <span>
+                <span className="tnum text-ink">{r.qty}</span>{' '}
+                {pluralize(r.qty, 'шт', 'шт', 'шт')}
+              </span>
+              {r.budget_rub !== null && (
+                <span>
+                  Бюджет: <span className="text-ink">{formatRub(r.budget_rub)}/шт</span>
+                </span>
+              )}
+            </footer>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
