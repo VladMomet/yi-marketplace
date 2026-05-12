@@ -1,14 +1,15 @@
 /**
  * CartDrawer — основной drawer корзины.
  *
- * Состояние из useCart (localStorage). Чекаут пока ведёт на /checkout — страница
- * будет создана в Этапе 4.
+ * Состояние из useCart (localStorage). Чекаут ведёт на /checkout.
+ * Минимум на позицию — MIN_QTY (5 шт): минус ниже минимума не уменьшает,
+ * а блокируется. Удалить целиком — отдельной кнопкой «Удалить».
  */
 
 'use client'
 
 import Link from 'next/link'
-import { useCart } from '@/hooks/use-cart'
+import { useCart, MIN_QTY } from '@/hooks/use-cart'
 import { useCity } from '@/hooks/use-city'
 import {
   Sheet,
@@ -45,8 +46,8 @@ export function CartDrawer({ open, onOpenChange }: Props) {
           <SheetTitle>Корзина</SheetTitle>
           {!isEmpty && (
             <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-ink-3">
-              {totalUnits} {pluralize(totalUnits, 'товар', 'товара', 'товаров')} ·{' '}
-              доставка в {city?.nameAcc ?? city?.nameRu ?? '—'}
+              {totalUnits} {pluralize(totalUnits, 'товар', 'товара', 'товаров')} · доставка в{' '}
+              {city?.nameAcc ?? city?.nameRu ?? '—'}
             </p>
           )}
         </div>
@@ -69,11 +70,11 @@ export function CartDrawer({ open, onOpenChange }: Props) {
             </div>
             <p className="mb-2 font-display text-lg font-medium">Здесь пока пусто</p>
             <p className="mb-6 max-w-[280px] text-sm text-ink-3">
-              Откройте каталог — там более 1950 SKU с прозрачной ценой и доставкой.
+              Откройте каталог — там более 2000 SKU с прозрачной ценой и доставкой.
             </p>
-            <Button onClick={() => onOpenChange(false)} variant="primary">
-              <Link href="/catalog">Открыть каталог</Link>
-            </Button>
+            <Link href="/catalog" onClick={() => onOpenChange(false)}>
+              <Button variant="primary">Открыть каталог</Button>
+            </Link>
           </div>
         ) : (
           <ul className="divide-y divide-hair">
@@ -102,14 +103,17 @@ export function CartDrawer({ open, onOpenChange }: Props) {
                         {item.title}
                       </Link>
                       <div className="mt-1 font-mono text-[10.5px] uppercase tracking-wider text-ink-3">
-                        {item.sku}
+                        {item.sku} · мин. {MIN_QTY}
                       </div>
                     </div>
 
                     <div className="flex items-end justify-between">
                       <QtyStepper
                         value={item.qty}
-                        onChange={(qty) => setQty(item.productId, qty)}
+                        min={MIN_QTY}
+                        onDec={() => setQty(item.productId, item.qty - 1)}
+                        onInc={() => setQty(item.productId, item.qty + 1)}
+                        onInput={(n) => setQty(item.productId, n)}
                       />
                       <div className="text-right">
                         <div className="tnum font-display text-sm font-semibold">
@@ -117,7 +121,7 @@ export function CartDrawer({ open, onOpenChange }: Props) {
                         </div>
                         <button
                           onClick={() => remove(item.productId)}
-                          className="font-mono text-[10.5px] uppercase tracking-wider text-ink-3 hover:text-cinnabar transition-colors"
+                          className="font-mono text-[10.5px] uppercase tracking-wider text-ink-3 transition-colors hover:text-cinnabar"
                         >
                           Удалить
                         </button>
@@ -158,22 +162,50 @@ export function CartDrawer({ open, onOpenChange }: Props) {
   )
 }
 
-function QtyStepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function QtyStepper({
+  value,
+  min,
+  onDec,
+  onInc,
+  onInput,
+}: {
+  value: number
+  min: number
+  onDec: () => void
+  onInc: () => void
+  onInput: (n: number) => void
+}) {
   return (
     <div className="inline-flex items-center overflow-hidden rounded-full border border-hair-2 bg-surface-hi">
       <button
         type="button"
-        onClick={() => onChange(value - 1)}
-        className="grid h-8 w-8 place-items-center text-ink-2 hover:bg-paper-2 transition-colors"
+        onClick={onDec}
+        disabled={value <= min}
+        className="grid h-9 w-9 place-items-center text-ink-2 transition-colors hover:bg-paper-2 disabled:cursor-not-allowed disabled:opacity-30"
         aria-label="Уменьшить"
       >
-        <svg width="10" height="2" viewBox="0 0 10 2" fill="currentColor"><rect width="10" height="2" /></svg>
+        <svg width="10" height="2" viewBox="0 0 10 2" fill="currentColor">
+          <rect width="10" height="2" />
+        </svg>
       </button>
-      <span className="tnum w-8 text-center text-sm font-semibold">{value}</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={10000}
+        value={value}
+        onChange={(e) => {
+          const n = parseInt(e.target.value, 10)
+          if (!Number.isFinite(n)) return
+          onInput(Math.min(10000, Math.max(min, n)))
+        }}
+        className="tnum h-9 w-12 border-0 bg-transparent text-center text-sm font-semibold focus:outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        aria-label="Количество"
+      />
       <button
         type="button"
-        onClick={() => onChange(value + 1)}
-        className="grid h-8 w-8 place-items-center text-ink-2 hover:bg-paper-2 transition-colors"
+        onClick={onInc}
+        className="grid h-9 w-9 place-items-center text-ink-2 transition-colors hover:bg-paper-2"
         aria-label="Увеличить"
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">

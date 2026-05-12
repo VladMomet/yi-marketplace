@@ -184,7 +184,7 @@ export default async function ProductPage({ params }: Props) {
               sku={product.sku}
               title={product.title_ru}
               photo={mainPhoto?.url ?? null}
-              priceRub={product.price.rub}
+              basePriceRub={product.price.rub}
             />
 
             <Specifications

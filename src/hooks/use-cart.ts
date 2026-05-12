@@ -1,9 +1,16 @@
 /**
  * useCart — хук работы с корзиной в localStorage.
  *
- * Корзина хранит минимум: { productId, qty, snapshot } для отображения в drawer без запроса в API.
- * Snapshot — title, photo, sku, priceRub — записывается при добавлении в корзину
- * чтобы показать товар сразу. При оформлении заказа на бэке снапшот пересчитывается.
+ * Корзина хранит минимум: { productId, qty, snapshot }.
+ *
+ * Snapshot цены:
+ *  - basePriceRub — базовая цена в БД (та что включает доставку до Москвы)
+ *  - priceRub — отображаемая цена с учётом текущего модификатора города
+ *
+ * При смене города priceRub пересчитывается из basePriceRub через recalcCart().
+ *
+ * MOQ: минимальный заказ — 5 штук на позицию. При добавлении нового товара
+ * сразу кладём 5 штук. Уменьшить ниже 5 нельзя — есть кнопка «Удалить».
  *
  * Синхронизация между табами через событие 'storage'.
  */
@@ -11,14 +18,21 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { applyCityMultiplier } from '@/lib/city-pricing'
 
 const STORAGE_KEY = 'yi-cart'
+
+/** Минимальное количество штук на одну позицию */
+export const MIN_QTY = 5
 
 export interface CartItem {
   productId: string
   sku: string
   title: string
   photo: string | null
+  /** Базовая цена из БД (Москва, без модификатора) */
+  basePriceRub: number
+  /** Цена с учётом города пользователя в момент последнего пересчёта */
   priceRub: number
   qty: number
 }
@@ -38,14 +52,31 @@ function readStorage(): CartItem[] {
     if (!raw) return []
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
-    return parsed.filter(
-      (it): it is CartItem =>
-        typeof it === 'object' &&
-        it !== null &&
-        typeof it.productId === 'string' &&
-        typeof it.qty === 'number' &&
-        it.qty > 0
-    )
+    return parsed
+      .filter(
+        (it): it is Partial<CartItem> =>
+          typeof it === 'object' &&
+          it !== null &&
+          typeof it.productId === 'string' &&
+          typeof it.qty === 'number' &&
+          it.qty > 0
+      )
+      .map((it) => {
+        // Миграция со старых записей где не было basePriceRub:
+        // считаем priceRub базовой и priceRub текущей одинаковыми.
+        const priceRub = typeof it.priceRub === 'number' ? it.priceRub : 0
+        const basePriceRub =
+          typeof it.basePriceRub === 'number' ? it.basePriceRub : priceRub
+        return {
+          productId: it.productId!,
+          sku: typeof it.sku === 'string' ? it.sku : '',
+          title: typeof it.title === 'string' ? it.title : '',
+          photo: typeof it.photo === 'string' ? it.photo : null,
+          basePriceRub,
+          priceRub,
+          qty: it.qty!,
+        }
+      })
   } catch {
     return []
   }
@@ -78,29 +109,57 @@ export function useCart() {
   useEffect(() => {
     const handler = () => setState(calc(readStorage()))
 
-    // Кросс-таб синк (event 'storage' срабатывает в других табах)
-    window.addEventListener('storage', handler)
-    // Внутри одного таба — наш кастомный event
-    window.addEventListener('yi:cart-updated', handler)
+    // Когда сменился город — пересчитываем priceRub у всех товаров
+    // (берём basePriceRub и применяем новый множитель), затем перерисовываемся.
+    const onCityChange = (e: Event) => {
+      const detail = (e as CustomEvent<{ slug?: string | null }>).detail
+      const newSlug = detail?.slug ?? null
+      const current = readStorage()
+      if (current.length === 0) return
+      const next = current.map((it) => ({
+        ...it,
+        priceRub: applyCityMultiplier(it.basePriceRub, newSlug),
+      }))
+      writeStorage(next)
+      // writeStorage уже диспатчит yi:cart-updated → handler перечитает state
+    }
 
-    // Первичная синхронизация после монтирования (в SSR state из дефолта)
+    window.addEventListener('storage', handler)
+    window.addEventListener('yi:cart-updated', handler)
+    window.addEventListener('yi:city-changed', onCityChange)
     handler()
 
     return () => {
       window.removeEventListener('storage', handler)
       window.removeEventListener('yi:cart-updated', handler)
+      window.removeEventListener('yi:city-changed', onCityChange)
     }
   }, [])
 
+  /**
+   * Добавить товар. Принимаем basePriceRub (из БД) и текущий citySlug,
+   * сами считаем отображаемую цену.
+   */
   const add = useCallback(
-    (item: Omit<CartItem, 'qty'> & { qty?: number }) => {
+    (item: {
+      productId: string
+      sku: string
+      title: string
+      photo: string | null
+      basePriceRub: number
+      citySlug: string | null | undefined
+      qty?: number
+    }) => {
       const current = readStorage()
-      const qty = item.qty ?? 1
+      const addQty = item.qty ?? MIN_QTY
+      const priceRub = applyCityMultiplier(item.basePriceRub, item.citySlug)
       const existing = current.find((it) => it.productId === item.productId)
       let next: CartItem[]
       if (existing) {
         next = current.map((it) =>
-          it.productId === item.productId ? { ...it, qty: it.qty + qty } : it
+          it.productId === item.productId
+            ? { ...it, qty: it.qty + addQty, basePriceRub: item.basePriceRub, priceRub }
+            : it
         )
       } else {
         next = [
@@ -110,8 +169,9 @@ export function useCart() {
             sku: item.sku,
             title: item.title,
             photo: item.photo,
-            priceRub: item.priceRub,
-            qty,
+            basePriceRub: item.basePriceRub,
+            priceRub,
+            qty: Math.max(addQty, MIN_QTY),
           },
         ]
       }
@@ -120,9 +180,22 @@ export function useCart() {
     []
   )
 
+  /**
+   * Пересчитать цены всех товаров по новому городу.
+   * Используется в useCity.select() — при смене города.
+   */
+  const recalcForCity = useCallback((citySlug: string | null | undefined) => {
+    const current = readStorage()
+    const next = current.map((it) => ({
+      ...it,
+      priceRub: applyCityMultiplier(it.basePriceRub, citySlug),
+    }))
+    writeStorage(next)
+  }, [])
+
   const setQty = useCallback((productId: string, qty: number) => {
     const current = readStorage()
-    if (qty <= 0) {
+    if (qty < MIN_QTY) {
       writeStorage(current.filter((it) => it.productId !== productId))
       return
     }
@@ -140,6 +213,14 @@ export function useCart() {
     writeStorage([])
   }, [])
 
+  const getQty = useCallback(
+    (productId: string): number => {
+      const found = state.items.find((it) => it.productId === productId)
+      return found?.qty ?? 0
+    },
+    [state.items]
+  )
+
   return {
     items: state.items,
     totalUnits: state.totalUnits,
@@ -149,5 +230,8 @@ export function useCart() {
     setQty,
     remove,
     clear,
+    getQty,
+    recalcForCity,
+    MIN_QTY,
   }
 }

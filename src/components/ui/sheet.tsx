@@ -10,6 +10,9 @@
  *     <SheetBody>...</SheetBody>
  *     <SheetFooter>...</SheetFooter>
  *   </Sheet>
+ *
+ * Анимации — обычным CSS в globals.css (классы yi-sheet-right / yi-sheet-backdrop).
+ * Это надёжнее, чем styled-jsx, который иногда отваливается на serverless.
  */
 
 'use client'
@@ -53,46 +56,16 @@ export function Sheet({
   if (!open) return null
 
   const sideClasses = {
-    right: cn(
-      'right-0 top-0 h-full',
-      widthClassName,
-      'max-w-full',
-      'animate-[slideInRight_280ms_cubic-bezier(0.22,1,0.36,1)]'
-    ),
-    left: cn(
-      'left-0 top-0 h-full',
-      widthClassName,
-      'max-w-full',
-      'animate-[slideInLeft_280ms_cubic-bezier(0.22,1,0.36,1)]'
-    ),
-    bottom:
-      'bottom-0 left-0 w-full max-h-[90vh] animate-[slideInBottom_280ms_cubic-bezier(0.22,1,0.36,1)]',
+    right: cn('right-0 top-0 h-full', widthClassName, 'max-w-full', 'yi-sheet-right'),
+    left: cn('left-0 top-0 h-full', widthClassName, 'max-w-full', 'yi-sheet-left'),
+    bottom: 'bottom-0 left-0 w-full max-h-[90vh] yi-sheet-bottom',
   }
 
   return (
     <>
-      <style jsx global>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
-        @keyframes slideInLeft {
-          from { transform: translateX(-100%); }
-          to { transform: translateX(0); }
-        }
-        @keyframes slideInBottom {
-          from { transform: translateY(100%); }
-          to { transform: translateY(0); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-      `}</style>
-
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm animate-[fadeIn_220ms_ease]"
+        className="yi-sheet-backdrop fixed inset-0 z-40 bg-ink/40 backdrop-blur-sm"
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />

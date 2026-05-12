@@ -16,6 +16,7 @@ import { createOrderSchema } from '@/lib/validation'
 import { generateOrderNumber } from '@/lib/utils'
 import { notifyNewOrder } from '@/lib/telegram'
 import { calculateCartTotal } from '@/lib/pricing'
+import { getCityMultiplier } from '@/lib/city-pricing'
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -95,13 +96,20 @@ export async function POST(req: Request) {
     )
   }
 
+  // Применяем модификатор города к ценам товаров перед расчётом суммы заказа.
+  // Это сделано на сервере, потому что клиент мог прислать любые цены — доверять
+  // ему нельзя. Источник истины: цена в БД (basePrice) * мультипликатор по slug города.
+  const cityMult = getCityMultiplier(city.slug)
+  const priceForProduct = (basePriceStr: string): number =>
+    Math.round((Number(basePriceStr) * cityMult) / 10) * 10
+
   // Считаем сумму
   const cartItems = input.items.map((item) => {
     const product = productById.get(item.product_id)!
     return {
       productId: product.id,
       qty: item.qty,
-      priceRub: Number(product.priceRub),
+      priceRub: priceForProduct(product.priceRub),
     }
   })
   const { totalRub, unitsCount } = calculateCartTotal(cartItems)
@@ -124,7 +132,7 @@ export async function POST(req: Request) {
 
     const itemsToInsert = input.items.map((item) => {
       const product = productById.get(item.product_id)!
-      const unit = Number(product.priceRub)
+      const unit = priceForProduct(product.priceRub)
       return {
         orderId: created.id,
         productId: product.id,
@@ -141,43 +149,53 @@ export async function POST(req: Request) {
     return created
   })
 
-  // Telegram-уведомление (fire-and-forget, чтобы клиент не ждал)
-  const [user] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1)
-  let company = null
-  if (user?.type === 'legal') {
-    const [c] = await db
-      .select()
-      .from(companies)
-      .where(eq(companies.userId, user.id))
-      .limit(1)
-    company = c ?? null
-  }
+  // Telegram-уведомление. Раньше было fire-and-forget (без await), но на serverless
+  // Vercel функция может завершиться раньше чем fetch успеет уйти, поэтому ждём.
+  console.log('[Order] Created in DB, number:', number)
 
-  if (user) {
-    notifyNewOrder({
-      number,
-      userName: user.name,
-      userPhone: user.phone,
-      userType: user.type,
-      companyName: company?.name,
-      companyInn: company?.inn,
-      cityName: city.nameRu,
-      comment: input.comment ?? null,
-      items: input.items.map((item) => {
-        const product = productById.get(item.product_id)!
-        const unit = Number(product.priceRub)
-        return {
-          title: product.titleRu,
-          qty: item.qty,
-          unitPriceRub: unit,
-          totalPriceRub: unit * item.qty,
-          url1688: product.sourceUrl,
-        }
-      }),
-      totalRub,
-    }).catch((e) => {
-      console.error('[Order] Telegram notification failed:', e)
-    })
+  try {
+    const [user] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1)
+    let company = null
+    if (user?.type === 'legal') {
+      const [c] = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.userId, user.id))
+        .limit(1)
+      company = c ?? null
+    }
+
+    if (!user) {
+      console.error('[Order] User not found after creation, skipping Telegram. userId:', session.user.id)
+    } else {
+      console.log('[Order] Sending Telegram notification for order', number)
+      await notifyNewOrder({
+        number,
+        userName: user.name,
+        userPhone: user.phone,
+        userType: user.type,
+        companyName: company?.name,
+        companyInn: company?.inn,
+        cityName: city.nameRu,
+        comment: input.comment ?? null,
+        items: input.items.map((item) => {
+          const product = productById.get(item.product_id)!
+          const unit = priceForProduct(product.priceRub)
+          return {
+            title: product.titleRu,
+            qty: item.qty,
+            unitPriceRub: unit,
+            totalPriceRub: unit * item.qty,
+            url1688: product.sourceUrl,
+          }
+        }),
+        totalRub,
+      })
+      console.log('[Order] Telegram notification sent for order', number)
+    }
+  } catch (e) {
+    // Не валим заказ — он уже в БД, менеджер увидит его в админке (когда будет)
+    console.error('[Order] Telegram notification failed:', e)
   }
 
   return NextResponse.json({

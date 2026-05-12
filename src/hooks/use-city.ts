@@ -4,6 +4,12 @@
  * Состояние хранится в cookie `yi_city` (slug, 1 год).
  * Список городов подгружается с /api/cities при первом монтировании
  * и кэшируется в sessionStorage до закрытия вкладки.
+ *
+ * При смене города:
+ *  1. Записываем новый slug в cookie
+ *  2. Диспатчим CustomEvent 'yi:city-changed' с новым slug
+ *  3. На него подписан useCart — пересчитывает priceRub всех товаров
+ *     в localStorage из basePriceRub * мультипликатор города
  */
 
 'use client'
@@ -92,11 +98,18 @@ export function useCity() {
     }
   }, [cities.length])
 
-  const selected = cities.find((c) => c.slug === selectedSlug) ?? cities.find((c) => c.isDefault) ?? cities[0]
+  const selected =
+    cities.find((c) => c.slug === selectedSlug) ??
+    cities.find((c) => c.isDefault) ??
+    cities[0]
 
   const select = useCallback((slug: string) => {
     writeCookie(COOKIE_NAME, slug, COOKIE_DAYS)
     setSelectedSlug(slug)
+    // Сигнал useCart, чтобы пересчитал цены в корзине
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('yi:city-changed', { detail: { slug } }))
+    }
   }, [])
 
   return { cities, selected, select }

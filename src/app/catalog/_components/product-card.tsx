@@ -2,16 +2,23 @@
  * ProductCard — карточка товара в сетке каталога.
  *
  * UX: вся карточка кликабельна через невидимый Link-layer (absolute inset-0 z-10),
- * кнопка «В корзину» имеет z-20 + stopPropagation чтобы перехватывать клик.
+ * блок управления корзиной имеет z-20 + stopPropagation чтобы перехватывать клики.
  *
  * Фото: на hover плавно переключается на второе (если есть).
+ *
+ * Поведение:
+ *  - Если товара нет в корзине — кнопка «+5 в корзину» (MIN_QTY)
+ *  - Если есть — степпер с минусом, количеством и плюсом
+ *  - Степпер уменьшает шагами по 1, но не ниже MIN_QTY. Удалить позицию — отдельно
+ *    в самом drawer'е корзины (там есть кнопка «Удалить»).
  */
 
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { useCart } from '@/hooks/use-cart'
+import { useCart, MIN_QTY } from '@/hooks/use-cart'
+import { useCity } from '@/hooks/use-city'
+import { applyCityMultiplier } from '@/lib/city-pricing'
 import { formatRub } from '@/lib/utils'
 import type { CatalogItem } from '@/lib/queries/catalog'
 
@@ -23,8 +30,13 @@ function buildProxyUrl(url: string): string {
 }
 
 export function ProductCard({ product }: { product: CatalogItem }) {
-  const { add } = useCart()
-  const [justAdded, setJustAdded] = useState(false)
+  const { add, setQty, getQty } = useCart()
+  const { selected: city } = useCity()
+  const qty = getQty(product.id)
+  const inCart = qty > 0
+
+  // Цена с учётом города пользователя
+  const displayPrice = applyCityMultiplier(product.price_rub, city?.slug)
 
   const mainPhoto = product.photos[0]
   const secondPhoto = product.photos[1] ?? mainPhoto
@@ -37,18 +49,31 @@ export function ProductCard({ product }: { product: CatalogItem }) {
         } см`
       : null
 
-  const handleAdd = (e: React.MouseEvent) => {
+  const stopAndPrevent = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+  }
+
+  const handleAdd = (e: React.MouseEvent) => {
+    stopAndPrevent(e)
     add({
       productId: product.id,
       sku: product.sku,
       title: product.title_ru,
       photo: mainPhoto?.url ?? null,
-      priceRub: product.price_rub,
+      basePriceRub: product.price_rub,
+      citySlug: city?.slug ?? null,
     })
-    setJustAdded(true)
-    setTimeout(() => setJustAdded(false), 1400)
+  }
+
+  const handleDec = (e: React.MouseEvent) => {
+    stopAndPrevent(e)
+    setQty(product.id, qty - 1)
+  }
+
+  const handleInc = (e: React.MouseEvent) => {
+    stopAndPrevent(e)
+    setQty(product.id, qty + 1)
   }
 
   return (
@@ -110,52 +135,61 @@ export function ProductCard({ product }: { product: CatalogItem }) {
         {(dimensionsText || product.moq) && (
           <div className="space-y-0.5 text-xs text-ink-3">
             {dimensionsText && <div>{dimensionsText}</div>}
-            {product.moq && <div>MOQ {product.moq}</div>}
+            <div>от {MIN_QTY} шт</div>
           </div>
         )}
 
         <div className="mt-auto flex items-end justify-between gap-3 pt-2">
           <div>
             <div className="tnum font-display text-xl font-semibold leading-none">
-              {formatRub(product.price_rub)}
+              {formatRub(displayPrice)}
             </div>
             <div className="mt-1.5 font-mono text-[9.5px] uppercase tracking-wider text-ink-3">
-              с доставкой
+              {inCart ? `× ${qty} = ${formatRub(displayPrice * qty)}` : 'с доставкой'}
             </div>
           </div>
 
-          <button
-            onClick={handleAdd}
-            className={`relative z-20 inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-xs font-semibold transition-colors ${
-              justAdded
-                ? 'bg-positive text-paper'
-                : 'bg-ink text-paper hover:bg-cinnabar'
-            }`}
-            aria-label={`Добавить «${product.title_ru}» в корзину`}
-          >
-            {justAdded ? (
-              <>
-                <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
-                  <path
-                    d="M1 4.5L4 7.5L10 1.5"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+          {inCart ? (
+            <div
+              className="relative z-20 inline-flex h-10 items-center overflow-hidden rounded-full bg-ink text-paper"
+              onClick={stopAndPrevent}
+            >
+              <button
+                type="button"
+                onClick={handleDec}
+                className="grid h-10 w-10 place-items-center transition-colors hover:bg-cinnabar"
+                aria-label="Уменьшить"
+              >
+                <svg width="10" height="2" viewBox="0 0 10 2" fill="currentColor">
+                  <rect width="10" height="2" />
                 </svg>
-                Добавлено
-              </>
-            ) : (
-              <>
+              </button>
+              <span className="tnum min-w-[28px] text-center text-xs font-semibold">{qty}</span>
+              <button
+                type="button"
+                onClick={handleInc}
+                className="grid h-10 w-10 place-items-center transition-colors hover:bg-cinnabar"
+                aria-label="Увеличить"
+              >
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
                   <rect x="4" width="2" height="10" />
                   <rect y="4" width="10" height="2" />
                 </svg>
-                В корзину
-              </>
-            )}
-          </button>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleAdd}
+              className="relative z-20 inline-flex h-10 items-center gap-1.5 rounded-full bg-ink px-4 text-xs font-semibold text-paper transition-colors hover:bg-cinnabar"
+              aria-label={`Добавить «${product.title_ru}» в корзину`}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                <rect x="4" width="2" height="10" />
+                <rect y="4" width="10" height="2" />
+              </svg>
+              {MIN_QTY} в корзину
+            </button>
+          )}
         </div>
       </div>
     </article>

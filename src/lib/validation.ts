@@ -112,7 +112,8 @@ export const createOrderSchema = z.object({
     .array(
       z.object({
         product_id: z.string().uuid(),
-        qty: z.number().int().min(1).max(10000),
+        // Минимум — 5 шт на позицию (MOQ). См. MIN_QTY в hooks/use-cart.ts
+        qty: z.number().int().min(5).max(10000),
       })
     )
     .min(1, 'Корзина пуста')
