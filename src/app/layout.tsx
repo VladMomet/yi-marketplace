@@ -15,7 +15,7 @@ const monaSans = Mona_Sans({
 })
 
 const hanken = Hanken_Grotesk({
-  subsets: ['latin', 'latin-ext'],
+  subsets: ['latin', 'cyrillic-ext'],
   variable: '--font-hanken',
   display: 'swap',
 })

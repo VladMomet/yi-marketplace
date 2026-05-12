@@ -180,13 +180,15 @@ async function main() {
       continue
     }
 
-seenOfferIds.add(parsed.offerId)
+    seenOfferIds.add(parsed.offerId)
 
-if (parsed.no === null) {
-  console.warn(`Skipping row: no field is null for offerId ${parsed.offerId}`)
-  continue
-}
-const sku = generateSku(parsed.no)
+    if (parsed.no === null) {
+      console.warn(`  ⚠ Row ${rowIdx}: missing no field, skipping`)
+      skipped++
+      continue
+    }
+
+    const sku = generateSku(parsed.no)
 
     const data = {
       offerId: parsed.offerId,
@@ -264,7 +266,7 @@ const sku = generateSku(parsed.no)
       }
     } catch (e) {
       errors++
-      console.error(`  ✗ Row ${rowIdx} (offerId ${parsed.offerId}):`, (e as Error).message)
+      console.error(`  ✗ Row ${rowIdx} (offerId ${parsed?.offerId ?? 'unknown'}):`, (e as Error).message)
     }
   }
 
