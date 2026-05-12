@@ -8,7 +8,7 @@ import { CookieBanner } from '@/components/cookie-banner'
 import './globals.css'
 
 const monaSans = Mona_Sans({
-  subsets: ['latin', 'cyrillic-ext'],
+  subsets: ['latin', 'latin-ext'],
   variable: '--font-mona',
   display: 'swap',
   weight: ['300', '400', '500', '600', '700', '800'],
