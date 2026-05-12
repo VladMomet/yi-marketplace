@@ -180,9 +180,13 @@ async function main() {
       continue
     }
 
-    seenOfferIds.add(parsed.offerId)
+seenOfferIds.add(parsed.offerId)
 
-    const sku = generateSku(parsed.no)
+if (parsed.no === null) {
+  console.warn(`Skipping row: no field is null for offerId ${parsed.offerId}`)
+  continue
+}
+const sku = generateSku(parsed.no)
 
     const data = {
       offerId: parsed.offerId,
