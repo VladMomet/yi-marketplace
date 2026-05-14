@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Mona_Sans, Hanken_Grotesk, JetBrains_Mono } from 'next/font/google'
 import { Providers } from '@/components/providers'
 import { Ticker } from '@/components/header/ticker'
@@ -43,6 +43,17 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'ru_RU',
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  // maximumScale=1 НЕ ставим — это ломает доступность (нельзя зумить).
+  // Цвет theme-color = paper в нашем дизайне (под iOS status bar и Android chrome).
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#fdfaf3' },
+    { media: '(prefers-color-scheme: dark)', color: '#fdfaf3' },
+  ],
 }
 
 export default function RootLayout({

@@ -93,3 +93,54 @@
 .yi-sheet-backdrop {
   animation: yi-fade-in 220ms ease;
 }
+
+/* ---------- Мобильные глобальные правила ---------- */
+
+/**
+ * iOS Safari зумит страницу когда фокус ставится на input/textarea со
+ * шрифтом меньше 16px. Чтобы предотвратить — минимум 16px для всех
+ * полей ввода. На десктопе Tailwind-классами (text-sm, text-base)
+ * можем переопределять обратно если очень нужно.
+ */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/**
+ * Убираем синий highlight при тапе по ссылкам на iOS.
+ */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/**
+ * Длинные URL/слова не должны разрывать вёрстку на мобиле.
+ * Применяем мягкий перенос — браузер сам найдёт удобное место.
+ */
+@media (max-width: 768px) {
+  body {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}
+
+/**
+ * Touch-targets: минимум 44×44 px по гайдлайнам Apple и Material.
+ * Применяем к кнопкам через мин. высоту автоматически.
+ */
+button:not([class*="h-"]),
+a[role="button"]:not([class*="h-"]) {
+  min-height: 36px;
+}
+
+/**
+ * Анти-jitter скролла при открытии Sheet на мобиле:
+ * body должен не дёргаться когда появляется/исчезает скроллбар.
+ */
+html {
+  scrollbar-gutter: stable;
+}

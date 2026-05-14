@@ -12,6 +12,7 @@ import { usePathname } from 'next/navigation'
 import { CitySelector } from './city-selector'
 import { CartButton } from './cart-button'
 import { AccountButton } from './account-button'
+import { MobileMenu } from './mobile-menu'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -25,9 +26,11 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-hair bg-paper/85 backdrop-blur-md">
-      <div className="container mx-auto flex h-[68px] max-w-[1480px] items-center justify-between gap-6 px-6 lg:px-8">
-        {/* Левая группа: лого + навигация */}
-        <div className="flex items-center gap-10">
+      <div className="container mx-auto flex h-[60px] max-w-[1480px] items-center justify-between gap-3 px-4 md:h-[68px] md:gap-6 md:px-6 lg:px-8">
+        {/* Левая группа: бургер (mobile) + лого + навигация (desktop) */}
+        <div className="flex items-center gap-2 md:gap-10">
+          <MobileMenu />
+
           <Link href="/" className="flex items-center gap-2.5" aria-label="Yí — главная">
             <span className="font-display text-3xl font-light leading-none tracking-tight">
               移
@@ -60,7 +63,7 @@ export function Header() {
         </div>
 
         {/* Правая группа: действия */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1 md:gap-2.5">
           <CitySelector />
           <AccountButton />
           <CartButton />

@@ -34,7 +34,7 @@ export function CitySelector() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-full border border-hair bg-surface-hi px-3.5 py-2 text-xs text-ink hover:border-ink-2 transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-full border border-hair bg-surface-hi px-2.5 py-1.5 text-xs text-ink transition-colors hover:border-ink-2 sm:gap-2 sm:px-3.5 sm:py-2"
         aria-label="Выбрать город доставки"
       >
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -45,9 +45,18 @@ export function CitySelector() {
             strokeLinejoin="round"
           />
         </svg>
-        <span className="hidden sm:inline">Доставка в</span>
-        <span className="font-semibold">{selected?.nameAcc ?? selected?.nameRu ?? '—'}</span>
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+        <span className="hidden md:inline">Доставка в</span>
+        <span className="max-w-[80px] truncate font-semibold sm:max-w-none">
+          {selected?.nameAcc ?? selected?.nameRu ?? '—'}
+        </span>
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+          fill="none"
+          aria-hidden="true"
+          className="hidden sm:block"
+        >
           <path
             d="M2 3.5L5 6.5L8 3.5"
             stroke="currentColor"

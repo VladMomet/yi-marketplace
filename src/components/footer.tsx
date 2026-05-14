@@ -17,7 +17,7 @@ const SERVICE_LINKS = [
 const LEGAL_LINKS = [
   { href: '/legal/privacy', label: 'Политика конфиденциальности' },
   { href: '/legal/offer', label: 'Публичная оферта' },
-  { href: '/legal/terms', label: 'Условия работы' },
+  { href: '/legal/terms', label: 'Пользовательское соглашение' },
 ]
 
 export function Footer() {
@@ -101,12 +101,18 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-14 flex flex-col gap-4 border-t border-paper/15 pt-8 text-paper/40 md:flex-row md:items-center md:justify-between">
-          <p className="font-mono text-[11px] uppercase tracking-wider">
-            © 2026 Yí · {LEGAL_ENTITY.fullName}
-          </p>
-          <p className="font-mono text-[11px] uppercase tracking-wider">
-            Обработка ПД по 152-ФЗ
+        <div className="mt-14 grid gap-4 border-t border-paper/15 pt-8 text-paper/40 md:grid-cols-2 md:items-start md:gap-8">
+          <div className="space-y-1.5 font-mono text-[10.5px] uppercase tracking-wider leading-relaxed">
+            <p>© 2026 Yí · {LEGAL_ENTITY.fullName}</p>
+            <p>
+              ИНН {LEGAL_ENTITY.inn} · ОГРНИП {LEGAL_ENTITY.ogrn}
+            </p>
+            <p className="normal-case tracking-normal text-paper/35">
+              {LEGAL_ENTITY.address}
+            </p>
+          </div>
+          <p className="font-mono text-[10.5px] uppercase tracking-wider md:text-right">
+            Обработка ПДн по 152-ФЗ
           </p>
         </div>
       </div>
